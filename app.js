@@ -502,6 +502,16 @@ function detSort(col) {
 
 // ─── Consultor Tab ───
 
+function buildMonthBands(rows) {
+  const bands = [];
+  let band = 0, prevMonth = null;
+  rows.forEach(r => {
+    if (r.month !== prevMonth) { if (prevMonth !== null) band++; prevMonth = r.month; }
+    bands.push(band % 2 === 1);
+  });
+  return bands;
+}
+
 let consultorInited = false;
 let consultorNames = [];
 let consultorActiveIdx = -1;
@@ -604,8 +614,10 @@ function refreshConsultor(name) {
   h += '<th class="sortable" style="cursor:default;text-align:right">Costo</th>';
   h += '</tr></thead><tbody>';
 
-  rows.forEach(r => {
-    h += '<tr>';
+  const bands = buildMonthBands(rows);
+  rows.forEach((r, i) => {
+    const band = bands[i] ? ' class="month-band"' : '';
+    h += `<tr${band}>`;
     h += `<td class="td-mono" style="font-size:11px">${r.act}</td>`;
     h += `<td class="td-name">${r.desc}</td>`;
     h += `<td class="td-mono" style="font-size:11px">${mlabel(r.month)}</td>`;

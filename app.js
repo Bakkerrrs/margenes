@@ -570,36 +570,48 @@ function impFormatDate(d) {
 
 function impParseSheet(sheet, colMap, numSet) {
   // Read as raw array of arrays to find the real header row
-  const aoa = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
-  if (!aoa.length) return { rows: [], mappedCols: 0, totalCols: 0, unmapped: [] };
+  // (Excel files often have title/merged rows before the actual headers)
+  const aoa = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: false });
+  if (!aoa.length) return { rows: [], mappedCols: 0, totalCols: 0, unmapped: [], debug: 'empty sheet' };
 
   // Known header names to search for (lowercase)
   const knownHeaders = new Set(Object.keys(colMap).map(k => k.toLowerCase()));
 
-  // Debug: log first 10 rows to see what SheetJS reads
-  for (let i = 0; i < Math.min(aoa.length, 10); i++) {
-    const row = aoa[i];
-    if (!row || !row.length) continue;
-    const cells = row.slice(0, 8).map(c => String(c).trim()).filter(c => c);
-    if (cells.length) console.log(`[impParseSheet] Row ${i}: ${cells.join(' | ')}`);
-  }
-
-  // Find the row that contains the most known headers
+  // Find the row that contains the most known headers (scan first 20 rows)
   let bestRow = 0, bestCount = 0;
+  const debugRows = [];
   for (let i = 0; i < Math.min(aoa.length, 20); i++) {
     const row = aoa[i];
     if (!row || !row.length) continue;
     let count = 0;
+    const matched = [];
     row.forEach(cell => {
+      if (cell == null) return;
       const v = String(cell).trim().toLowerCase();
-      if (knownHeaders.has(v)) count++;
+      if (knownHeaders.has(v)) { count++; matched.push(String(cell).trim()); }
     });
+    if (count > 0) debugRows.push(`Fila ${i}: ${count} matches (${matched.slice(0,5).join(', ')}${matched.length>5?'...':''})`);
     if (count > bestCount) { bestCount = count; bestRow = i; }
   }
-  console.log(`[impParseSheet] Best header row: ${bestRow} with ${bestCount} matches`);
+
+  const debugInfo = `Header detectado en fila ${bestRow} con ${bestCount} coincidencias. ${debugRows.join('; ')}`;
+
+  // If no headers found at all, return debug info
+  if (bestCount === 0) {
+    // Show what's actually in the first 10 rows for debugging
+    const sampleRows = [];
+    for (let i = 0; i < Math.min(aoa.length, 10); i++) {
+      const row = aoa[i];
+      if (!row || !row.length) continue;
+      const cells = row.filter(c => c != null && String(c).trim()).slice(0, 6).map(c => String(c).trim());
+      if (cells.length) sampleRows.push(`Fila ${i}: [${cells.join(' | ')}]`);
+    }
+    return { rows: [], mappedCols: 0, totalCols: aoa[0] ? aoa[0].length : 0, unmapped: [],
+      debug: `No se encontraron headers conocidos. Primeras filas: ${sampleRows.join('; ')}` };
+  }
 
   // Use bestRow as headers, everything after as data
-  const headerRow = aoa[bestRow].map(c => String(c).trim());
+  const headerRow = aoa[bestRow].map(c => c == null ? '' : String(c).trim());
   const hMap = {}, unmapped = [];
   let mapped = 0;
 
@@ -613,7 +625,6 @@ function impParseSheet(sheet, colMap, numSet) {
   for (let i = bestRow + 1; i < aoa.length; i++) {
     const raw = aoa[i];
     if (!raw || !raw.length) continue;
-    // Skip completely empty rows
     const hasData = raw.some(c => c !== '' && c != null);
     if (!hasData) continue;
 
@@ -630,7 +641,8 @@ function impParseSheet(sheet, colMap, numSet) {
     rows.push(obj);
   }
 
-  return { rows, mappedCols: mapped, totalCols: headerRow.filter(h => h).length, unmapped: unmapped.filter(u => u && !u.startsWith('__')) };
+  return { rows, mappedCols: mapped, totalCols: headerRow.filter(h => h).length,
+    unmapped: unmapped.filter(u => u && !u.startsWith('__')), debug: debugInfo };
 }
 
 function impPreview(title, data) {
@@ -682,7 +694,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (s1) {
           impBDD1 = impParseSheet(impWorkbook.Sheets[s1], IMP_BDD1_MAP, IMP_NUM1);
-          impLog('ok', `BDD1 ("${s1}"): ${impBDD1.rows.length} filas, ${impBDD1.mappedCols}/${impBDD1.totalCols} cols mapeadas`);
+          impLog('ok', `BDD1 ("${s1}"): ${impBDD1.rows.length} filas, ${impBDD1.mappedCols}/${impBDD1.totalCols} cols mapeadas [v2]`);
+          if (impBDD1.debug) impLog('info', `BDD1 debug: ${impBDD1.debug}`);
           if (impBDD1.unmapped.length) impLog('warn', `BDD1 sin mapear: ${impBDD1.unmapped.join(', ')}`);
           preview += impPreview('BDD1 → actividades', impBDD1);
         } else { impLog('err', 'Hoja BDD1 no encontrada'); impBDD1 = null; }
@@ -690,7 +703,8 @@ document.addEventListener('DOMContentLoaded', function() {
         if (s2) {
           impBDD2 = impParseSheet(impWorkbook.Sheets[s2], IMP_BDD2_MAP, IMP_NUM2);
           impBDD2.rows.forEach(r => { if (!r.profesional && r.employee_name) r.profesional = r.employee_name; });
-          impLog('ok', `BDD2 ("${s2}"): ${impBDD2.rows.length} filas, ${impBDD2.mappedCols}/${impBDD2.totalCols} cols mapeadas`);
+          impLog('ok', `BDD2 ("${s2}"): ${impBDD2.rows.length} filas, ${impBDD2.mappedCols}/${impBDD2.totalCols} cols mapeadas [v2]`);
+          if (impBDD2.debug) impLog('info', `BDD2 debug: ${impBDD2.debug}`);
           if (impBDD2.unmapped.length) impLog('warn', `BDD2 sin mapear: ${impBDD2.unmapped.join(', ')}`);
           preview += impPreview('BDD2 → consultores', impBDD2);
         } else { impLog('err', 'Hoja BDD2 no encontrada'); impBDD2 = null; }

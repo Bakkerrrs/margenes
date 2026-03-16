@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Panel de Márgenes SIICL</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -60,6 +61,7 @@
   <div class="tabs">
     <div class="tab active" onclick="switchTab('resumen')">Resumen</div>
     <div class="tab" onclick="switchTab('detalle')">Detalle</div>
+    <div class="tab" onclick="switchTab('importar')">Importar Excel</div>
   </div>
   <div id="tabResumen">
     <div class="kpi-row" id="kpiRow"></div>
@@ -83,6 +85,60 @@
     <div class="card">
       <div class="card-title"><span class="ta">●</span> Margen Histórico por Actividad</div>
       <div class="table-wrap" id="detalleTableWrap" style="max-height:700px"></div>
+    </div>
+  </div>
+
+  <div id="tabImportar" style="display:none">
+    <!-- Step 1: Supabase Config -->
+    <div class="card">
+      <div class="card-title"><span class="ta">1</span> Configuración Supabase</div>
+      <div class="import-grid2">
+        <div class="import-field">
+          <label class="import-label">Supabase URL</label>
+          <input type="text" class="import-input" id="impUrl" value="https://byhfwubwzcyufkxhrgti.supabase.co">
+        </div>
+        <div class="import-field">
+          <label class="import-label">Service Role Key (para INSERT)</label>
+          <input type="password" class="import-input" id="impKey" placeholder="eyJhbGciOiJIUzI1NiIs...">
+        </div>
+      </div>
+      <p style="font-size:11px;color:var(--text3);margin-top:8px">Usa la <strong>service_role key</strong> (no la anon key). Supabase → Settings → API.</p>
+    </div>
+
+    <!-- Step 2: Upload File -->
+    <div class="card">
+      <div class="card-title"><span class="ta">2</span> Cargar archivo Excel</div>
+      <label class="import-file-btn" for="impFileInput">Seleccionar archivo .xlsm / .xlsx</label>
+      <input type="file" id="impFileInput" accept=".xlsm,.xlsx,.xls" style="display:none">
+      <div id="impFileInfo" style="margin-top:8px;font-size:13px;color:var(--text2)"></div>
+      <div id="impSheetPreview"></div>
+    </div>
+
+    <!-- Step 3: Options -->
+    <div class="card">
+      <div class="card-title"><span class="ta">3</span> Opciones de importación</div>
+      <div class="import-checks">
+        <label class="import-check"><input type="checkbox" id="impOptClear" checked> Limpiar tablas antes de importar (TRUNCATE)</label>
+        <label class="import-check"><input type="checkbox" id="impOptBDD1" checked> Importar BDD1 → actividades</label>
+        <label class="import-check"><input type="checkbox" id="impOptBDD2" checked> Importar BDD2 → consultores</label>
+      </div>
+      <div style="margin-top:10px">
+        <label class="import-label">Tamaño de batch</label>
+        <input type="text" class="import-input" id="impBatchSize" value="200" style="width:100px">
+      </div>
+      <div style="display:flex;gap:10px;margin-top:14px">
+        <button class="import-btn import-btn-go" id="impBtnGo" disabled onclick="impStart()">Importar a Supabase</button>
+        <button class="import-btn import-btn-clear" id="impBtnClear" onclick="impClearTables()" style="display:none">Solo limpiar tablas</button>
+      </div>
+    </div>
+
+    <!-- Step 4: Progress -->
+    <div class="card" id="impProgressCard" style="display:none">
+      <div class="card-title"><span class="ta">4</span> Progreso</div>
+      <div class="import-progress-bar"><div class="import-progress-fill" id="impProgressFill"></div></div>
+      <div style="margin-top:4px;font-size:11px;color:var(--text3)" id="impProgressLabel">0%</div>
+      <div class="import-summary" id="impSummary" style="display:none"></div>
+      <div class="import-log" id="impLog"></div>
     </div>
   </div>
 </div>

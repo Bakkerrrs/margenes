@@ -365,6 +365,7 @@ function switchTab(tab) {
   document.querySelector(`.tab[onclick="switchTab('${tab}')"]`).classList.add('active');
   document.getElementById('tabResumen').style.display = tab === 'resumen' ? '' : 'none';
   document.getElementById('tabDetalle').style.display = tab === 'detalle' ? '' : 'none';
+  document.getElementById('tabImportar').style.display = tab === 'importar' ? '' : 'none';
   if (tab === 'detalle') refreshDetalle();
 }
 
@@ -480,6 +481,311 @@ function showTip(ev, el) {
 }
 
 function hideTip() { tip.style.display = 'none'; }
+
+// ─── Import Tab Logic ───
+
+let impWorkbook = null, impBDD1 = null, impBDD2 = null;
+
+const IMP_BDD1_MAP = {
+  'Ejercicio':'fy','Month':'month','Customer':'customer',
+  'Activity Short Name':'act_short','Activity Description':'act_desc',
+  'IRM vs2':'irm','Income recognition Method':'irm',
+  'End of period WIP':'wip','Total Facturacion mensual':'billing',
+  'Total Monthly Prod':'prod','Total Monthly costs':'cost',
+  'Total Monthly Margen':'margin','Total dias imputados':'dias_imputados',
+  'Dias Actividad':'dias_actividad','Dias Gratuidad':'dias_gratuidad',
+  'ADV - Responsible ID':'adv_responsible_id','Project':'project',
+  'Project name':'project_name','Subproject':'subproject',
+  'Subproject name':'subproject_name','Tipo-AT':'tipo_at',
+  'Key BU FINAL':'key_bu_final','Working Days':'working_days',
+  'Total Costo Corregido':'total_costo_corregido','UF Gestionable':'uf_gestionable',
+  'OPS':'ops','AUX_AMR':'aux_amr','Quarter':'quarter','Pais':'pais',
+  'Subco':'subco','Standarized Project':'standarized_project',
+  'BU FINAL 2':'bu','Code Report':'code_report','Desc Report':'desc_report',
+  'Total_Prod_UF':'total_prod_uf','Jefatura':'jefatura',
+  'Starter Date':'starter_date','Finisher Date':'finisher_date'
+};
+
+const IMP_BDD2_MAP = {
+  'RUT':'rut','Emp ID2 (Unique)':'emp_id2','Jefe directo':'jefe_directo',
+  'Month':'month','Cliente':'cliente','BU2':'bu2','Employee Type':'employee_type',
+  'Project':'project','Sub-project':'subproject','Employee ID':'employee_id',
+  'Employee Name':'employee_name','Responsible ID':'responsible_id',
+  'Activity Name':'activity_name','Activity Short Name':'act_short',
+  'Report code':'report_code','Hours':'hours','Dias':'dias',
+  'Working Days':'working_days','FTE2':'fte','Costo diario':'costo_diario',
+  'Costo mensual':'costo_mensual','IFS':'ifs',
+  'Fecha de contratación':'fecha_contratacion','Unlink Date':'unlink_date',
+  'Project name':'project_name','Tipologia':'tipologia',
+  'End of month':'end_of_month','Sueldo Base Nominal':'sueldo_base_nominal',
+  'Sueldo Liquido Teoricó':'sueldo_liquido_teorico',
+  'Producción mensual (UF)':'prod_mensual_uf',
+  'Producción mensual (Pesos chilenos)':'prod_mensual_pesos',
+  'Gratuidad':'gratuidad','Key BU FINAL 2':'key_bu_final_2',
+  'BU-Jefatura':'bu_jefatura','Grupo Cliente':'grupo_cliente',
+  'TipoAT':'tipo_at','Pais':'pais','Subco':'subco',
+  'Standarized Project':'standarized_project','Code Report':'code_report',
+  'Mission':'mission','Yerie':'yerie','BM':'bm',
+  'Employee ID 2':'employee_id_2','Employee Name 2':'employee_name_2','RUT 2':'rut_2'
+};
+
+const IMP_NUM1 = new Set(['wip','billing','prod','cost','margin','dias_imputados','dias_actividad','dias_gratuidad','working_days','total_costo_corregido','total_prod_uf']);
+const IMP_NUM2 = new Set(['hours','dias','working_days','fte','costo_diario','costo_mensual','sueldo_base_nominal','sueldo_liquido_teorico','prod_mensual_uf','prod_mensual_pesos']);
+
+function impLog(type, msg) {
+  const el = document.getElementById('impLog');
+  const t = new Date().toLocaleTimeString('es-CL');
+  el.innerHTML += `<div><span style="color:#666">[${t}]</span> <span class="${type}">${msg}</span></div>`;
+  el.scrollTop = el.scrollHeight;
+}
+
+function impProgress(pct) {
+  document.getElementById('impProgressFill').style.width = pct + '%';
+  document.getElementById('impProgressLabel').textContent = pct + '%';
+}
+
+function impFormatMonth(val) {
+  if (!val) return '';
+  if (val instanceof Date) return `${val.getFullYear()}-${String(val.getMonth()+1).padStart(2,'0')}`;
+  const s = String(val).trim();
+  if (/^\d{4}-\d{2}$/.test(s)) return s;
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.substring(0,7);
+  const dmy = s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/);
+  if (dmy) return `${dmy[3]}-${dmy[2].padStart(2,'0')}`;
+  const mn = {'ene':'01','feb':'02','mar':'03','abr':'04','may':'05','jun':'06','jul':'07','ago':'08','sep':'09','oct':'10','nov':'11','dic':'12'};
+  const mx = s.match(/^([a-z]{3})-(\d{2})$/i);
+  if (mx && mn[mx[1].toLowerCase()]) return `${parseInt(mx[2])+2000}-${mn[mx[1].toLowerCase()]}`;
+  const num = parseFloat(s);
+  if (!isNaN(num) && num > 40000 && num < 50000) {
+    const d = new Date((num - 25569) * 86400000);
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  }
+  return s;
+}
+
+function impFormatDate(d) {
+  if (!(d instanceof Date) || isNaN(d)) return '';
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function impParseSheet(sheet, colMap, numSet) {
+  const json = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+  if (!json.length) return { rows: [], mappedCols: 0, totalCols: 0, unmapped: [] };
+  const headers = Object.keys(json[0]);
+  const hMap = {}, unmapped = [];
+  let mapped = 0;
+  headers.forEach(h => {
+    const t = h.trim();
+    const k = colMap[t] || colMap[Object.keys(colMap).find(k2 => k2.toLowerCase() === t.toLowerCase())];
+    if (k) { hMap[h] = k; mapped++; } else { unmapped.push(t); }
+  });
+  const rows = json.map(row => {
+    const obj = {};
+    Object.entries(hMap).forEach(([exH, dbC]) => {
+      let v = row[exH];
+      if (v instanceof Date) v = impFormatDate(v);
+      if (typeof v === 'string' && v.startsWith('#')) v = null;
+      if (numSet.has(dbC)) { v = (v === '' || v == null) ? 0 : (parseFloat(v) || 0); }
+      else { v = (v == null) ? '' : String(v).trim(); }
+      obj[dbC] = v;
+    });
+    return obj;
+  });
+  return { rows, mappedCols: mapped, totalCols: headers.length, unmapped };
+}
+
+function impPreview(title, data) {
+  if (!data || !data.rows.length) return '';
+  const sample = data.rows.slice(0, 5), cols = Object.keys(sample[0]).slice(0, 8);
+  let h = `<div style="margin-top:10px"><strong>${title}</strong> <span class="import-tag import-tag-ok">${data.rows.length} filas</span>`;
+  h += `<div class="import-preview"><table><thead><tr>`;
+  cols.forEach(c => { h += `<th>${c}</th>`; });
+  if (Object.keys(sample[0]).length > 8) h += `<th>...(+${Object.keys(sample[0]).length - 8})</th>`;
+  h += '</tr></thead><tbody>';
+  sample.forEach(row => {
+    h += '<tr>';
+    cols.forEach(c => {
+      let v = row[c];
+      if (typeof v === 'number') v = v.toLocaleString('es-CL', { maximumFractionDigits: 2 });
+      else if (!v) v = '<span style="color:#ccc">—</span>';
+      else if (String(v).length > 25) v = String(v).substring(0, 25) + '…';
+      h += `<td>${v}</td>`;
+    });
+    if (Object.keys(row).length > 8) h += '<td>…</td>';
+    h += '</tr>';
+  });
+  h += '</tbody></table></div></div>';
+  return h;
+}
+
+// File input handler
+document.addEventListener('DOMContentLoaded', function() {
+  const fi = document.getElementById('impFileInput');
+  if (!fi) return;
+  fi.addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    document.getElementById('impFileInfo').innerHTML = `<strong>${file.name}</strong> (${(file.size/1024/1024).toFixed(1)} MB)`;
+    document.getElementById('impLog').innerHTML = '';
+    impLog('info', `Leyendo: ${file.name}...`);
+    document.getElementById('impProgressCard').style.display = 'block';
+
+    const reader = new FileReader();
+    reader.onload = function(evt) {
+      try {
+        impWorkbook = XLSX.read(evt.target.result, { type: 'array', cellDates: true });
+        const sheets = impWorkbook.SheetNames;
+        impLog('ok', `Hojas: ${sheets.join(', ')}`);
+
+        const s1 = sheets.find(s => s.toUpperCase().includes('BDD1'));
+        const s2 = sheets.find(s => s.toUpperCase().includes('BDD2'));
+        let preview = '';
+
+        if (s1) {
+          impBDD1 = impParseSheet(impWorkbook.Sheets[s1], IMP_BDD1_MAP, IMP_NUM1);
+          impLog('ok', `BDD1 ("${s1}"): ${impBDD1.rows.length} filas, ${impBDD1.mappedCols}/${impBDD1.totalCols} cols mapeadas`);
+          if (impBDD1.unmapped.length) impLog('warn', `BDD1 sin mapear: ${impBDD1.unmapped.join(', ')}`);
+          preview += impPreview('BDD1 → actividades', impBDD1);
+        } else { impLog('err', 'Hoja BDD1 no encontrada'); impBDD1 = null; }
+
+        if (s2) {
+          impBDD2 = impParseSheet(impWorkbook.Sheets[s2], IMP_BDD2_MAP, IMP_NUM2);
+          impBDD2.rows.forEach(r => { if (!r.profesional && r.employee_name) r.profesional = r.employee_name; });
+          impLog('ok', `BDD2 ("${s2}"): ${impBDD2.rows.length} filas, ${impBDD2.mappedCols}/${impBDD2.totalCols} cols mapeadas`);
+          if (impBDD2.unmapped.length) impLog('warn', `BDD2 sin mapear: ${impBDD2.unmapped.join(', ')}`);
+          preview += impPreview('BDD2 → consultores', impBDD2);
+        } else { impLog('err', 'Hoja BDD2 no encontrada'); impBDD2 = null; }
+
+        document.getElementById('impSheetPreview').innerHTML = preview;
+        document.getElementById('impBtnGo').disabled = !(impBDD1 || impBDD2);
+        document.getElementById('impBtnClear').style.display = 'inline-block';
+      } catch (err) {
+        impLog('err', `Error: ${err.message}`);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  });
+});
+
+function impSbHeaders(key) {
+  return { 'apikey': key, 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' };
+}
+
+async function impTruncate(table, url, key) {
+  const resp = await fetch(`${url}/rest/v1/${table}?id=gte.0`, { method: 'DELETE', headers: impSbHeaders(key) });
+  if (!resp.ok) throw new Error(`TRUNCATE ${table}: ${resp.status} - ${await resp.text()}`);
+}
+
+async function impInsert(table, rows, url, key) {
+  if (!rows.length) return;
+  const resp = await fetch(`${url}/rest/v1/${table}`, { method: 'POST', headers: impSbHeaders(key), body: JSON.stringify(rows) });
+  if (!resp.ok) throw new Error(`INSERT ${table}: ${resp.status} - ${await resp.text()}`);
+}
+
+function impNormalize(rows, type) {
+  return rows.map(r => {
+    const o = { ...r };
+    if (o.month) o.month = impFormatMonth(o.month);
+    if (type === 'bdd2') {
+      if (!o.profesional && o.employee_name) o.profesional = o.employee_name;
+      if (o.end_of_month) o.end_of_month = impFormatMonth(o.end_of_month);
+    }
+    Object.keys(o).forEach(k => { if (o[k] === '') o[k] = null; });
+    return o;
+  });
+}
+
+async function impStart() {
+  const url = document.getElementById('impUrl').value.replace(/\/$/, '');
+  const key = document.getElementById('impKey').value.trim();
+  if (!url || !key) { alert('Completa URL y Service Role Key'); return; }
+
+  const doClear = document.getElementById('impOptClear').checked;
+  const do1 = document.getElementById('impOptBDD1').checked && impBDD1;
+  const do2 = document.getElementById('impOptBDD2').checked && impBDD2;
+  const bs = parseInt(document.getElementById('impBatchSize').value) || 200;
+
+  document.getElementById('impBtnGo').disabled = true;
+  document.getElementById('impProgressCard').style.display = 'block';
+  impProgress(0);
+
+  const total = (do1 ? impBDD1.rows.length : 0) + (do2 ? impBDD2.rows.length : 0);
+  let done = 0, errors = 0;
+  const t0 = Date.now();
+
+  try {
+    if (doClear) {
+      if (do2) { impLog('info', 'Limpiando consultores...'); await impTruncate('consultores', url, key); impLog('ok', 'consultores limpiada'); }
+      if (do1) { impLog('info', 'Limpiando actividades...'); await impTruncate('actividades', url, key); impLog('ok', 'actividades limpiada'); }
+    }
+
+    if (do1) {
+      impLog('info', `BDD1 → actividades (${impBDD1.rows.length} filas)...`);
+      const rows = impNormalize(impBDD1.rows, 'bdd1');
+      const valid = rows.filter(r => r.fy && r.month && r.customer && r.act_short && r.act_desc);
+      const skipped = rows.length - valid.length;
+      if (skipped) impLog('warn', `${skipped} filas sin campos obligatorios omitidas`);
+
+      for (let i = 0; i < valid.length; i += bs) {
+        const batch = valid.slice(i, i + bs);
+        try { await impInsert('actividades', batch, url, key); done += batch.length; }
+        catch (err) { errors += batch.length; impLog('err', `Batch actividades [${i}]: ${err.message}`); }
+        impProgress(Math.round(done / total * 100));
+      }
+      impLog('ok', `actividades: ${done} filas importadas`);
+    }
+
+    if (do2) {
+      impLog('info', `BDD2 → consultores (${impBDD2.rows.length} filas)...`);
+      const rows = impNormalize(impBDD2.rows, 'bdd2');
+      const valid = rows.filter(r => r.month && r.act_short && r.profesional);
+      const skipped = rows.length - valid.length;
+      if (skipped) impLog('warn', `${skipped} filas sin campos obligatorios omitidas`);
+
+      let d2 = 0;
+      for (let i = 0; i < valid.length; i += bs) {
+        const batch = valid.slice(i, i + bs);
+        try { await impInsert('consultores', batch, url, key); d2 += batch.length; done += batch.length; }
+        catch (err) { errors += batch.length; impLog('err', `Batch consultores [${i}]: ${err.message}`); }
+        impProgress(Math.round(done / total * 100));
+      }
+      impLog('ok', `consultores: ${d2} filas importadas`);
+    }
+
+    const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
+    impProgress(100);
+    impLog('ok', `Completado en ${elapsed}s`);
+
+    const sum = document.getElementById('impSummary');
+    sum.style.display = 'grid';
+    sum.innerHTML = `
+      <div class="import-summary-item"><div class="num">${done}</div><div class="lbl">Importadas</div></div>
+      <div class="import-summary-item"><div class="num" style="color:${errors?'#D64550':'#02931C'}">${errors}</div><div class="lbl">Errores</div></div>
+      <div class="import-summary-item"><div class="num">${elapsed}s</div><div class="lbl">Tiempo</div></div>`;
+
+    if (done > 0) {
+      impLog('info', 'Recargando datos del dashboard...');
+      await loadData();
+      impLog('ok', 'Dashboard actualizado');
+    }
+  } catch (err) {
+    impLog('err', `Error fatal: ${err.message}`);
+  }
+  document.getElementById('impBtnGo').disabled = false;
+}
+
+async function impClearTables() {
+  const url = document.getElementById('impUrl').value.replace(/\/$/, '');
+  const key = document.getElementById('impKey').value.trim();
+  if (!url || !key) { alert('Completa URL y Service Role Key'); return; }
+  if (!confirm('¿Eliminar TODOS los datos de ambas tablas?')) return;
+  document.getElementById('impProgressCard').style.display = 'block';
+  try {
+    impLog('info', 'Limpiando consultores...'); await impTruncate('consultores', url, key); impLog('ok', 'OK');
+    impLog('info', 'Limpiando actividades...'); await impTruncate('actividades', url, key); impLog('ok', 'OK');
+    impLog('ok', 'Tablas limpiadas');
+  } catch (err) { impLog('err', err.message); }
+}
 
 // ─── Start ───
 document.addEventListener('DOMContentLoaded', loadData);

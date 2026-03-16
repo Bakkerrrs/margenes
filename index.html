@@ -92,11 +92,13 @@
   <div id="tabConsultor" style="display:none">
     <div class="card">
       <div class="card-title"><span class="ta">●</span> Historial por Consultor</div>
-      <div style="margin-bottom:12px">
-        <label style="font-size:12px;color:var(--text3);font-weight:600">Seleccionar Consultor</label>
-        <select id="consultorSelect" onchange="refreshConsultor()" style="margin-left:8px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-family:'Source Sans 3';font-size:13px;min-width:280px">
-          <option value="">— Selecciona un consultor —</option>
-        </select>
+      <div style="margin-bottom:12px;position:relative">
+        <label style="font-size:12px;color:var(--text3);font-weight:600">Buscar Consultor</label>
+        <div class="search-wrap" style="margin-top:4px;max-width:360px">
+          <input type="text" id="consultorInput" placeholder="Escribe nombre del consultor…" autocomplete="off">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8896a6" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        </div>
+        <div id="consultorDropdown" class="consultor-dropdown"></div>
       </div>
       <div class="table-wrap" id="consultorTableWrap" style="max-height:700px"></div>
     </div>

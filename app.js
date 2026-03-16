@@ -503,17 +503,78 @@ function detSort(col) {
 // ─── Consultor Tab ───
 
 let consultorInited = false;
+let consultorNames = [];
+let consultorActiveIdx = -1;
 
 function initConsultorTab() {
   if (consultorInited) return;
   consultorInited = true;
-  const names = [...new Set(CONS_RAW.map(r => r.profesional || r.employee_name).filter(Boolean))].sort();
-  const sel = document.getElementById('consultorSelect');
-  names.forEach(n => { sel.innerHTML += `<option value="${n}">${n}</option>`; });
+  consultorNames = [...new Set(CONS_RAW.map(r => r.profesional || r.employee_name).filter(Boolean))].sort();
+
+  const inp = document.getElementById('consultorInput');
+  const dd = document.getElementById('consultorDropdown');
+
+  inp.addEventListener('input', () => {
+    const q = inp.value.trim().toLowerCase();
+    consultorActiveIdx = -1;
+    if (!q) { dd.classList.remove('open'); dd.innerHTML = ''; return; }
+    const matches = consultorNames.filter(n => n.toLowerCase().includes(q)).slice(0, 30);
+    if (matches.length === 0) {
+      dd.innerHTML = '<div class="cd-empty">Sin resultados</div>';
+    } else {
+      dd.innerHTML = matches.map((n, i) => `<div class="cd-item" data-idx="${i}" onmousedown="selectConsultor('${n.replace(/'/g, "\\'")}')">${highlightMatch(n, q)}</div>`).join('');
+    }
+    dd.classList.add('open');
+  });
+
+  inp.addEventListener('keydown', (e) => {
+    const items = dd.querySelectorAll('.cd-item');
+    if (!items.length) {
+      if (e.key === 'Enter') { e.preventDefault(); tryExactMatch(); }
+      return;
+    }
+    if (e.key === 'ArrowDown') { e.preventDefault(); consultorActiveIdx = Math.min(consultorActiveIdx + 1, items.length - 1); updateActiveItem(items); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); consultorActiveIdx = Math.max(consultorActiveIdx - 1, 0); updateActiveItem(items); }
+    else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (consultorActiveIdx >= 0 && items[consultorActiveIdx]) {
+        items[consultorActiveIdx].onmousedown();
+      } else if (items.length === 1) {
+        items[0].onmousedown();
+      } else { tryExactMatch(); }
+    }
+    else if (e.key === 'Escape') { dd.classList.remove('open'); }
+  });
+
+  inp.addEventListener('blur', () => { setTimeout(() => dd.classList.remove('open'), 150); });
+  inp.addEventListener('focus', () => { if (inp.value.trim() && dd.innerHTML) dd.classList.add('open'); });
 }
 
-function refreshConsultor() {
-  const name = document.getElementById('consultorSelect').value;
+function updateActiveItem(items) {
+  items.forEach((it, i) => it.classList.toggle('active', i === consultorActiveIdx));
+  if (items[consultorActiveIdx]) items[consultorActiveIdx].scrollIntoView({ block: 'nearest' });
+}
+
+function highlightMatch(name, query) {
+  const idx = name.toLowerCase().indexOf(query);
+  if (idx < 0) return name;
+  return name.slice(0, idx) + '<strong style="color:var(--accent)">' + name.slice(idx, idx + query.length) + '</strong>' + name.slice(idx + query.length);
+}
+
+function tryExactMatch() {
+  const q = document.getElementById('consultorInput').value.trim().toLowerCase();
+  const match = consultorNames.find(n => n.toLowerCase() === q);
+  if (match) selectConsultor(match);
+}
+
+function selectConsultor(name) {
+  document.getElementById('consultorInput').value = name;
+  document.getElementById('consultorDropdown').classList.remove('open');
+  refreshConsultor(name);
+}
+
+function refreshConsultor(name) {
+  if (!name) name = document.getElementById('consultorInput').value.trim();
   const wrap = document.getElementById('consultorTableWrap');
   if (!name) { wrap.innerHTML = '<p style="color:var(--text3);padding:20px;text-align:center">Selecciona un consultor para ver su historial</p>'; return; }
 

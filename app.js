@@ -21,6 +21,7 @@ function mlabel(m) { const [y, mm] = m.split('-'); return MNAMES[parseInt(mm) - 
 // Data arrays (populated from Supabase)
 let ALL = [];   // actividades as arrays matching original format
 let CONS = {};   // consultores keyed by "actShort|month"
+let HOLI = {};   // holidays keyed by "employee|month" → total dias
 let F = { fy: [], bu: [], ta: [], cu: [], je: [] };  // filter options
 
 let sChart, hChart;
@@ -107,10 +108,17 @@ async function loadData() {
 
     // Transform consultores to dict keyed by "actShort|month"
     CONS = {};
+    HOLI = {};
     consRows.forEach(r => {
       const key = `${r.act_short}|${r.month}`;
       if (!CONS[key]) CONS[key] = [];
       CONS[key].push([r.profesional || r.employee_name, r.jefe_directo]);
+      // Build holiday lookup: employee|month → dias
+      const name = r.profesional || r.employee_name;
+      if (r.report_code === 'Holiday' && name && r.month) {
+        const hKey = `${name}|${r.month}`;
+        HOLI[hKey] = (HOLI[hKey] || 0) + (Number(r.dias) || 0);
+      }
     });
 
     // Build filter options from data
@@ -473,19 +481,23 @@ function showTip(ev, el) {
   const ds = el.dataset; const as = ds.as, mo = ds.mo, pr = parseFloat(ds.pr), co = parseFloat(ds.co), mg = ds.mg;
   const di = parseFloat(ds.di), wd = parseFloat(ds.wd), adrV = parseFloat(ds.adr), adcV = parseFloat(ds.adc);
   const key = `${as}|${mo}`; const cons = CONS[key] || [];
+  // Calculate total holiday days for professionals on this activity-month
+  const uniqueProfs = [...new Set(cons.map(c => c[0]))];
+  const totalHoli = uniqueProfs.reduce((sum, name) => sum + (HOLI[`${name}|${mo}`] || 0), 0);
   let html = `<div style="margin-bottom:8px;font-weight:700;color:var(--accent);font-size:13px">${mlabel(mo)}</div>`;
   html += `<div class="tip-grid"><div class="tip-kpi"><div class="lbl">Producci\u00f3n</div><div class="val">${fmt(pr)}</div></div>`
     + `<div class="tip-kpi"><div class="lbl">Costo</div><div class="val" style="color:${co < 0 ? '#c0392b' : '#229954'}">${fmt(co)}</div></div>`
     + `<div class="tip-kpi"><div class="lbl">Margen</div><div class="val">${mg}${mg !== 'N/A' ? '%' : ''}</div></div></div>`;
-  html += `<div class="tip-grid g4">`
+  html += `<div class="tip-grid g5">`
     + `<div class="tip-kpi"><div class="lbl">D\u00edas Imput.</div><div class="val">${di.toFixed(1)}</div></div>`
     + `<div class="tip-kpi"><div class="lbl">Working Days</div><div class="val">${wd}</div></div>`
+    + `<div class="tip-kpi"><div class="lbl">Holidays</div><div class="val" style="color:#8e44ad">${totalHoli.toFixed(1)}</div></div>`
     + `<div class="tip-kpi"><div class="lbl">ADR</div><div class="val" style="color:var(--accent)">${fmt(adrV)}</div></div>`
     + `<div class="tip-kpi"><div class="lbl">ADC</div><div class="val" style="color:#c0392b">${fmt(adcV)}</div></div></div>`;
   if (cons.length > 0) {
     html += `<div style="border-top:1px solid var(--border2);padding-top:6px;margin-top:2px">`;
     html += `<div style="font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:var(--text3);margin-bottom:4px;font-weight:600">Profesionales (${cons.length})</div>`;
-    cons.forEach(c => { html += `<div style="display:flex;justify-content:space-between;gap:12px;padding:2px 0;border-bottom:1px solid #f0f0f0"><span>${c[0]}</span><span style="color:var(--text3);font-size:11px">${c[1]}</span></div>`; });
+    cons.forEach(c => { const hd = HOLI[`${c[0]}|${mo}`] || 0; html += `<div style="display:flex;justify-content:space-between;gap:12px;padding:2px 0;border-bottom:1px solid #f0f0f0"><span>${c[0]}</span><span style="color:#8e44ad;font-size:11px;min-width:40px;text-align:right">${hd > 0 ? hd.toFixed(1) + 'd vac' : ''}</span><span style="color:var(--text3);font-size:11px">${c[1]}</span></div>`; });
     html += `</div>`;
   }
   tip.innerHTML = html; tip.style.display = 'block';

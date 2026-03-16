@@ -392,8 +392,8 @@ function renderTable(md, month) {
       + `<td class="td-mono" style="text-align:right">${fmt(a[9])}</td></tr>`;
     if (hasC) {
       h += `<tr id="cr${idx}" class="consultant-row" style="display:none"><td></td><td colspan="9"><div style="padding:6px 0">`
-        + `<table style="width:100%;font-size:12px"><tr><th style="padding:5px 10px;text-align:left">Profesional</th><th style="padding:5px 10px;text-align:left">Jefe Directo</th></tr>`;
-      CONS[key].forEach(c => { h += `<tr><td style="padding:5px 10px;border-bottom:1px solid var(--border2)">${c[0]}</td><td style="padding:5px 10px;border-bottom:1px solid var(--border2)">${c[1]}</td></tr>`; });
+        + `<table style="width:100%;font-size:12px"><tr><th style="padding:5px 10px;text-align:left">Profesional</th><th style="padding:5px 10px;text-align:left">Jefe Directo</th><th style="padding:5px 10px;text-align:left">ADV</th></tr>`;
+      CONS[key].forEach(c => { h += `<tr><td style="padding:5px 10px;border-bottom:1px solid var(--border2)">${c[0]}</td><td style="padding:5px 10px;border-bottom:1px solid var(--border2)">${c[1]}</td><td style="padding:5px 10px;border-bottom:1px solid var(--border2)">${c[2]}</td></tr>`; });
       h += '</table></div></td></tr>';
     }
   });

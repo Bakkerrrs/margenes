@@ -774,10 +774,18 @@ async function impStart() {
 
     if (do1) {
       impLog('info', `BDD1 → actividades (${impBDD1.rows.length} filas)...`);
+      // Log mapped columns for debugging
+      if (impBDD1.rows.length > 0) {
+        const sampleKeys = Object.keys(impBDD1.rows[0]);
+        impLog('info', `Columnas mapeadas BDD1: ${sampleKeys.join(', ')}`);
+        const reqFields = ['fy','month','customer','act_short','act_desc'];
+        const missing = reqFields.filter(f => !sampleKeys.includes(f));
+        if (missing.length) impLog('warn', `Columnas obligatorias NO mapeadas: ${missing.join(', ')}`);
+      }
       const rows = impNormalize(impBDD1.rows, 'bdd1');
-      const valid = rows.filter(r => r.fy && r.month && r.customer && r.act_short && r.act_desc);
+      const valid = rows.filter(r => r.month && r.act_short);
       const skipped = rows.length - valid.length;
-      if (skipped) impLog('warn', `${skipped} filas sin campos obligatorios omitidas`);
+      if (skipped) impLog('warn', `${skipped} filas sin month/act_short omitidas`);
 
       for (let i = 0; i < valid.length; i += bs) {
         const batch = valid.slice(i, i + bs);

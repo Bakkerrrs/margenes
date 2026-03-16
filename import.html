@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Importar Excel — Panel de Márgenes SIICL</title>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<style>
+  :root { --bg: #f0f2f5; --surface: #ffffff; --accent: #1b5fa8; --accent2: #2874c4; --text: #1a2b3c; --text2: #5a6a7e; --border: #dfe3e8; --green: #02931C; --red: #D64550; --orange: #E66C37; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Source Sans 3', 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 40px 20px; }
+  h1 { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+  .subtitle { color: var(--text2); font-size: 14px; margin-bottom: 24px; }
+  .card { background: var(--surface); border-radius: 12px; border: 1px solid var(--border); padding: 24px; width: 100%; max-width: 800px; margin-bottom: 16px; }
+  .card h2 { font-size: 16px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+  .step-num { background: var(--accent); color: #fff; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; }
+  label { display: block; font-size: 13px; font-weight: 600; color: var(--text2); margin-bottom: 6px; }
+  input[type="text"], input[type="password"] { width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; font-family: 'JetBrains Mono', monospace; }
+  input[type="file"] { display: none; }
+  .file-btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; background: var(--accent); color: #fff; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+  .file-btn:hover { background: var(--accent2); }
+  .file-info { margin-top: 10px; font-size: 13px; color: var(--text2); }
+  .file-info strong { color: var(--text); }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+  .btn { padding: 12px 24px; border: none; border-radius: 8px; font-size: 15px; font-weight: 700; cursor: pointer; transition: all 0.2s; }
+  .btn-primary { background: var(--green); color: #fff; }
+  .btn-primary:hover { background: #027015; }
+  .btn-primary:disabled { background: #ccc; cursor: not-allowed; }
+  .btn-danger { background: var(--red); color: #fff; }
+  .btn-danger:hover { background: #b83540; }
+  .btn-row { display: flex; gap: 12px; margin-top: 16px; }
+  .progress-wrap { margin-top: 16px; display: none; }
+  .progress-bar { height: 8px; background: #e8e8e8; border-radius: 4px; overflow: hidden; }
+  .progress-fill { height: 100%; background: var(--accent); border-radius: 4px; transition: width 0.3s; width: 0%; }
+  .log { margin-top: 12px; max-height: 300px; overflow-y: auto; font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.6; background: #1a1a2e; color: #e8e8e8; border-radius: 8px; padding: 12px; }
+  .log .ok { color: #4ade80; }
+  .log .err { color: #f87171; }
+  .log .warn { color: #fbbf24; }
+  .log .info { color: #60a5fa; }
+  .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-top: 16px; }
+  .summary-item { text-align: center; padding: 12px; background: #f7f8fa; border-radius: 8px; }
+  .summary-item .num { font-size: 24px; font-weight: 800; color: var(--accent); }
+  .summary-item .lbl { font-size: 11px; color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px; }
+  .preview-table { width: 100%; font-size: 11px; border-collapse: collapse; margin-top: 12px; overflow-x: auto; display: block; }
+  .preview-table th, .preview-table td { padding: 4px 8px; border: 1px solid var(--border); white-space: nowrap; }
+  .preview-table th { background: #f7f8fa; font-weight: 600; position: sticky; top: 0; }
+  .check { display: flex; align-items: center; gap: 8px; margin: 8px 0; font-size: 13px; }
+  .check input { width: 16px; height: 16px; }
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+  .tag-ok { background: #e2f5e5; color: var(--green); }
+  .tag-err { background: #fce8ea; color: var(--red); }
+  .tag-warn { background: #fdf0e6; color: var(--orange); }
+</style>
+</head>
+<body>
+<h1>Importar Excel a Supabase</h1>
+<p class="subtitle">Carga SIICL_Planilla-Margenes_2025.xlsm → tablas actividades y consultores</p>
+
+<!-- Step 1: Supabase Config -->
+<div class="card">
+  <h2><span class="step-num">1</span> Configuración Supabase</h2>
+  <div class="grid2">
+    <div>
+      <label>Supabase URL</label>
+      <input type="text" id="sbUrl" value="https://byhfwubwzcyufkxhrgti.supabase.co">
+    </div>
+    <div>
+      <label>Service Role Key (para INSERT)</label>
+      <input type="password" id="sbKey" placeholder="eyJhbGciOiJIUzI1NiIs...">
+    </div>
+  </div>
+  <p style="font-size:12px;color:var(--text2)">Usa la <strong>service_role key</strong> (no la anon key) para poder insertar datos. La encuentras en Supabase → Settings → API.</p>
+</div>
+
+<!-- Step 2: Upload File -->
+<div class="card">
+  <h2><span class="step-num">2</span> Cargar archivo Excel</h2>
+  <label class="file-btn" for="fileInput">
+    📂 Seleccionar archivo .xlsm
+  </label>
+  <input type="file" id="fileInput" accept=".xlsm,.xlsx,.xls">
+  <div id="fileInfo" class="file-info"></div>
+  <div id="sheetPreview"></div>
+</div>
+
+<!-- Step 3: Options -->
+<div class="card">
+  <h2><span class="step-num">3</span> Opciones de importación</h2>
+  <div class="check">
+    <input type="checkbox" id="optClear" checked>
+    <label for="optClear" style="margin:0">Limpiar tablas antes de importar (TRUNCATE)</label>
+  </div>
+  <div class="check">
+    <input type="checkbox" id="optBDD1" checked>
+    <label for="optBDD1" style="margin:0">Importar BDD1 → actividades</label>
+  </div>
+  <div class="check">
+    <input type="checkbox" id="optBDD2" checked>
+    <label for="optBDD2" style="margin:0">Importar BDD2 → consultores</label>
+  </div>
+  <div style="margin-top:8px">
+    <label>Tamaño de batch (filas por request)</label>
+    <input type="text" id="batchSize" value="200" style="width:100px">
+  </div>
+  <div class="btn-row">
+    <button class="btn btn-primary" id="btnImport" disabled onclick="startImport()">Importar a Supabase</button>
+    <button class="btn btn-danger" id="btnClearOnly" onclick="clearTables()" style="display:none">Solo limpiar tablas</button>
+  </div>
+</div>
+
+<!-- Step 4: Progress -->
+<div class="card" id="progressCard" style="display:none">
+  <h2><span class="step-num">4</span> Progreso</h2>
+  <div class="progress-wrap" id="progressWrap" style="display:block">
+    <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+    <div style="margin-top:4px;font-size:12px;color:var(--text2)" id="progressLabel">0%</div>
+  </div>
+  <div class="summary" id="summary" style="display:none"></div>
+  <div class="log" id="log"></div>
+</div>
+
+<script>
+// ─── State ───
+let workbook = null;
+let bdd1Data = null;  // parsed rows from BDD1
+let bdd2Data = null;  // parsed rows from BDD2
+
+// ─── Column mappings: Excel header → Supabase column ───
+
+const BDD1_MAP = {
+  'Ejercicio':                'fy',
+  'Month':                    'month',
+  'Customer':                 'customer',
+  'Activity Short Name':      'act_short',
+  'Activity Description':     'act_desc',
+  'IRM vs2':                  'irm',
+  'Income recognition Method':'irm',
+  'End of period WIP':        'wip',
+  'Total Facturacion mensual':'billing',
+  'Total Monthly Prod':       'prod',
+  'Total Monthly costs':      'cost',
+  'Total Monthly Margen':     'margin',
+  'Total dias imputados':     'dias_imputados',
+  'Dias Actividad':           'dias_actividad',
+  'Dias Gratuidad':           'dias_gratuidad',
+  'ADV - Responsible ID':     'adv_responsible_id',
+  'Project':                  'project',
+  'Project name':             'project_name',
+  'Subproject':               'subproject',
+  'Subproject name':          'subproject_name',
+  'Tipo-AT':                  'tipo_at',
+  'Key BU FINAL':             'key_bu_final',
+  'Working Days':             'working_days',
+  'Total Costo Corregido':    'total_costo_corregido',
+  'UF Gestionable':           'uf_gestionable',
+  'OPS':                      'ops',
+  'AUX_AMR':                  'aux_amr',
+  'Quarter':                  'quarter',
+  'Pais':                     'pais',
+  'Subco':                    'subco',
+  'Standarized Project':      'standarized_project',
+  'BU FINAL 2':               'bu',
+  'Code Report':              'code_report',
+  'Desc Report':              'desc_report',
+  'Total_Prod_UF':            'total_prod_uf',
+  'Jefatura':                 'jefatura',
+  'Starter Date':             'starter_date',
+  'Finisher Date':            'finisher_date'
+};
+
+const BDD2_MAP = {
+  'RUT':                      'rut',
+  'Emp ID2 (Unique)':         'emp_id2',
+  'Jefe directo':             'jefe_directo',
+  'Month':                    'month',
+  'Cliente':                  'cliente',
+  'BU2':                      'bu2',
+  'Employee Type':            'employee_type',
+  'Project':                  'project',
+  'Sub-project':              'subproject',
+  'Employee ID':              'employee_id',
+  'Employee Name':            'employee_name',
+  'Responsible ID':           'responsible_id',
+  'Activity Name':            'activity_name',
+  'Activity Short Name':      'act_short',
+  'Report code':              'report_code',
+  'Hours':                    'hours',
+  'Dias':                     'dias',
+  'Working Days':             'working_days',
+  'FTE2':                     'fte',
+  'Costo diario':             'costo_diario',
+  'Costo mensual':            'costo_mensual',
+  'IFS':                      'ifs',
+  'Fecha de contratación':    'fecha_contratacion',
+  'Unlink Date':              'unlink_date',
+  'Project name':             'project_name',
+  'Tipologia':                'tipologia',
+  'End of month':             'end_of_month',
+  'Sueldo Base Nominal':      'sueldo_base_nominal',
+  'Sueldo Liquido Teoricó':   'sueldo_liquido_teorico',
+  'Producción mensual (UF)':  'prod_mensual_uf',
+  'Producción mensual (Pesos chilenos)': 'prod_mensual_pesos',
+  'Gratuidad':                'gratuidad',
+  'Key BU FINAL 2':           'key_bu_final_2',
+  'BU-Jefatura':              'bu_jefatura',
+  'Grupo Cliente':            'grupo_cliente',
+  'TipoAT':                   'tipo_at',
+  'Pais':                     'pais',
+  'Subco':                    'subco',
+  'Standarized Project':      'standarized_project',
+  'Code Report':              'code_report',
+  'Mission':                  'mission',
+  'Yerie':                    'yerie',
+  'BM':                       'bm',
+  'Employee ID 2':            'employee_id_2',
+  'Employee Name 2':          'employee_name_2',
+  'RUT 2':                    'rut_2'
+};
+
+// Numeric columns (will be parsed as numbers)
+const BDD1_NUMERIC = new Set(['wip','billing','prod','cost','margin','dias_imputados','dias_actividad','dias_gratuidad','working_days','total_costo_corregido','total_prod_uf']);
+const BDD2_NUMERIC = new Set(['hours','dias','working_days','fte','costo_diario','costo_mensual','sueldo_base_nominal','sueldo_liquido_teorico','prod_mensual_uf','prod_mensual_pesos']);
+
+// Required fields for validation
+const BDD1_REQUIRED = ['fy','month','customer','act_short','act_desc'];
+const BDD2_REQUIRED = ['month','act_short','profesional'];
+
+// ─── File handling ───
+
+document.getElementById('fileInput').addEventListener('change', function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const info = document.getElementById('fileInfo');
+  info.innerHTML = `<strong>${file.name}</strong> (${(file.size / 1024 / 1024).toFixed(1)} MB)`;
+
+  log_clear();
+  log_msg('info', `Leyendo archivo: ${file.name}...`);
+
+  const reader = new FileReader();
+  reader.onload = function(evt) {
+    try {
+      workbook = XLSX.read(evt.target.result, { type: 'array', cellDates: true });
+      const sheets = workbook.SheetNames;
+      log_msg('ok', `Hojas encontradas: ${sheets.join(', ')}`);
+
+      // Find BDD1 and BDD2 sheets
+      const bdd1Sheet = sheets.find(s => s.toUpperCase().includes('BDD1'));
+      const bdd2Sheet = sheets.find(s => s.toUpperCase().includes('BDD2'));
+
+      let preview = '';
+
+      if (bdd1Sheet) {
+        bdd1Data = parseSheet(workbook.Sheets[bdd1Sheet], BDD1_MAP, BDD1_NUMERIC);
+        log_msg('ok', `BDD1 ("${bdd1Sheet}"): ${bdd1Data.rows.length} filas, ${bdd1Data.mappedCols} columnas mapeadas de ${bdd1Data.totalCols}`);
+        if (bdd1Data.unmapped.length > 0) {
+          log_msg('warn', `BDD1 columnas sin mapear: ${bdd1Data.unmapped.join(', ')}`);
+        }
+        preview += renderPreview('BDD1 → actividades', bdd1Data);
+      } else {
+        log_msg('err', 'No se encontró la hoja BDD1');
+        bdd1Data = null;
+      }
+
+      if (bdd2Sheet) {
+        bdd2Data = parseSheet(workbook.Sheets[bdd2Sheet], BDD2_MAP, BDD2_NUMERIC);
+        // For BDD2, set profesional = employee_name
+        bdd2Data.rows.forEach(row => {
+          if (!row.profesional && row.employee_name) row.profesional = row.employee_name;
+        });
+        log_msg('ok', `BDD2 ("${bdd2Sheet}"): ${bdd2Data.rows.length} filas, ${bdd2Data.mappedCols} columnas mapeadas de ${bdd2Data.totalCols}`);
+        if (bdd2Data.unmapped.length > 0) {
+          log_msg('warn', `BDD2 columnas sin mapear: ${bdd2Data.unmapped.join(', ')}`);
+        }
+        preview += renderPreview('BDD2 → consultores', bdd2Data);
+      } else {
+        log_msg('err', 'No se encontró la hoja BDD2');
+        bdd2Data = null;
+      }
+
+      document.getElementById('sheetPreview').innerHTML = preview;
+      document.getElementById('btnImport').disabled = !(bdd1Data || bdd2Data);
+      document.getElementById('btnClearOnly').style.display = 'inline-block';
+      document.getElementById('progressCard').style.display = 'block';
+
+    } catch (err) {
+      log_msg('err', `Error al leer Excel: ${err.message}`);
+      console.error(err);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+});
+
+// ─── Sheet parsing ───
+
+function parseSheet(sheet, colMap, numericSet) {
+  const json = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+  if (json.length === 0) return { rows: [], mappedCols: 0, totalCols: 0, unmapped: [], headers: [] };
+
+  const excelHeaders = Object.keys(json[0]);
+  const mapped = [];
+  const unmapped = [];
+  const headerMap = {}; // excelHeader → dbColumn
+
+  excelHeaders.forEach(h => {
+    const trimmed = h.trim();
+    // Try exact match first
+    if (colMap[trimmed]) {
+      headerMap[h] = colMap[trimmed];
+      mapped.push(trimmed);
+    } else {
+      // Try case-insensitive match
+      const key = Object.keys(colMap).find(k => k.toLowerCase() === trimmed.toLowerCase());
+      if (key) {
+        headerMap[h] = colMap[key];
+        mapped.push(trimmed);
+      } else {
+        unmapped.push(trimmed);
+      }
+    }
+  });
+
+  const rows = json.map(row => {
+    const obj = {};
+    Object.entries(headerMap).forEach(([excelCol, dbCol]) => {
+      let val = row[excelCol];
+
+      // Handle dates
+      if (val instanceof Date) {
+        val = formatDate(val);
+      }
+
+      // Handle #N/D, #N/A, #REF!, etc.
+      if (typeof val === 'string' && val.startsWith('#')) {
+        val = null;
+      }
+
+      // Parse numeric columns
+      if (numericSet.has(dbCol)) {
+        if (val === '' || val === null || val === undefined) {
+          val = 0;
+        } else {
+          const n = parseFloat(val);
+          val = isNaN(n) ? 0 : n;
+        }
+      } else {
+        // Text column
+        if (val === null || val === undefined) {
+          val = '';
+        } else {
+          val = String(val).trim();
+        }
+      }
+
+      obj[dbCol] = val;
+    });
+    return obj;
+  });
+
+  return {
+    rows,
+    mappedCols: mapped.length,
+    totalCols: excelHeaders.length,
+    unmapped,
+    headers: mapped.map(h => headerMap[excelHeaders.find(e => e.trim() === h)] || h)
+  };
+}
+
+function formatDate(d) {
+  if (!(d instanceof Date) || isNaN(d)) return '';
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function formatMonth(val) {
+  // Convert various date formats to YYYY-MM
+  if (!val) return '';
+  if (val instanceof Date) {
+    return `${val.getFullYear()}-${String(val.getMonth() + 1).padStart(2, '0')}`;
+  }
+  const s = String(val).trim();
+
+  // Already YYYY-MM
+  if (/^\d{4}-\d{2}$/.test(s)) return s;
+
+  // YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.substring(0, 7);
+
+  // DD-MM-YYYY or DD/MM/YYYY
+  const dmy = s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/);
+  if (dmy) return `${dmy[3]}-${dmy[2].padStart(2, '0')}`;
+
+  // "ene-26", "feb-25", etc.
+  const mnames = { 'ene':'01','feb':'02','mar':'03','abr':'04','may':'05','jun':'06',
+                    'jul':'07','ago':'08','sep':'09','oct':'10','nov':'11','dic':'12' };
+  const mx = s.match(/^([a-z]{3})-(\d{2})$/i);
+  if (mx && mnames[mx[1].toLowerCase()]) {
+    const year = parseInt(mx[2]) + 2000;
+    return `${year}-${mnames[mx[1].toLowerCase()]}`;
+  }
+
+  // Excel serial date number
+  const num = parseFloat(s);
+  if (!isNaN(num) && num > 40000 && num < 50000) {
+    const d = new Date((num - 25569) * 86400000);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  }
+
+  return s;
+}
+
+// ─── Preview rendering ───
+
+function renderPreview(title, data) {
+  if (!data || data.rows.length === 0) return '';
+  const previewRows = data.rows.slice(0, 5);
+  const cols = Object.keys(previewRows[0]).slice(0, 10); // first 10 columns
+
+  let h = `<div style="margin-top:16px"><strong>${title}</strong> <span class="tag tag-ok">${data.rows.length} filas</span>`;
+  h += `<div style="overflow-x:auto;max-height:200px"><table class="preview-table"><thead><tr>`;
+  cols.forEach(c => { h += `<th>${c}</th>`; });
+  if (Object.keys(previewRows[0]).length > 10) h += `<th>...(+${Object.keys(previewRows[0]).length - 10})</th>`;
+  h += '</tr></thead><tbody>';
+  previewRows.forEach(row => {
+    h += '<tr>';
+    cols.forEach(c => {
+      let v = row[c];
+      if (typeof v === 'number') v = v.toLocaleString('es-CL', { maximumFractionDigits: 2 });
+      else if (!v) v = '<span style="color:#ccc">—</span>';
+      else if (String(v).length > 30) v = String(v).substring(0, 30) + '...';
+      h += `<td>${v}</td>`;
+    });
+    if (Object.keys(row).length > 10) h += '<td>...</td>';
+    h += '</tr>';
+  });
+  h += '</tbody></table></div></div>';
+  return h;
+}
+
+// ─── Supabase operations ───
+
+function getConfig() {
+  return {
+    url: document.getElementById('sbUrl').value.replace(/\/$/, ''),
+    key: document.getElementById('sbKey').value.trim()
+  };
+}
+
+function sbHeaders(key) {
+  return {
+    'apikey': key,
+    'Authorization': `Bearer ${key}`,
+    'Content-Type': 'application/json',
+    'Prefer': 'return=minimal'
+  };
+}
+
+async function sbRequest(method, table, body, config) {
+  const url = `${config.url}/rest/v1/${table}`;
+  const opts = { method, headers: sbHeaders(config.key) };
+  if (body) opts.body = JSON.stringify(body);
+  const resp = await fetch(url, opts);
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(`${method} ${table}: ${resp.status} - ${text}`);
+  }
+  return resp;
+}
+
+async function truncateTable(table, config) {
+  // Delete all rows
+  const url = `${config.url}/rest/v1/${table}?id=gte.0`;
+  const resp = await fetch(url, {
+    method: 'DELETE',
+    headers: sbHeaders(config.key)
+  });
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(`TRUNCATE ${table}: ${resp.status} - ${text}`);
+  }
+}
+
+async function insertBatch(table, rows, config) {
+  if (rows.length === 0) return;
+  await sbRequest('POST', table, rows, config);
+}
+
+// ─── Month normalization for data ───
+
+function normalizeRows(rows, type) {
+  return rows.map(row => {
+    const clean = { ...row };
+
+    // Normalize month field
+    if (clean.month) {
+      clean.month = formatMonth(clean.month);
+    }
+
+    // For BDD1: ensure fy and mandatory fields
+    if (type === 'bdd1') {
+      // Normalize dates
+      if (clean.starter_date) clean.starter_date = formatDate(new Date(clean.starter_date)) || clean.starter_date;
+      if (clean.finisher_date) clean.finisher_date = formatDate(new Date(clean.finisher_date)) || clean.finisher_date;
+    }
+
+    // For BDD2: ensure profesional
+    if (type === 'bdd2') {
+      if (!clean.profesional && clean.employee_name) {
+        clean.profesional = clean.employee_name;
+      }
+      // Normalize dates
+      if (clean.end_of_month) clean.end_of_month = formatMonth(clean.end_of_month);
+      if (clean.fecha_contratacion) clean.fecha_contratacion = formatDate(new Date(clean.fecha_contratacion)) || clean.fecha_contratacion;
+      if (clean.unlink_date) clean.unlink_date = formatDate(new Date(clean.unlink_date)) || clean.unlink_date;
+    }
+
+    // Remove empty strings for optional fields, keep nulls
+    Object.keys(clean).forEach(k => {
+      if (clean[k] === '') clean[k] = null;
+    });
+
+    return clean;
+  });
+}
+
+// ─── Import logic ───
+
+async function startImport() {
+  const config = getConfig();
+  if (!config.url || !config.key) {
+    alert('Completa la URL y Service Role Key de Supabase');
+    return;
+  }
+
+  const doClear = document.getElementById('optClear').checked;
+  const doBDD1 = document.getElementById('optBDD1').checked && bdd1Data;
+  const doBDD2 = document.getElementById('optBDD2').checked && bdd2Data;
+  const batchSize = parseInt(document.getElementById('batchSize').value) || 200;
+
+  document.getElementById('progressCard').style.display = 'block';
+  document.getElementById('btnImport').disabled = true;
+  setProgress(0);
+
+  const totalRows = (doBDD1 ? bdd1Data.rows.length : 0) + (doBDD2 ? bdd2Data.rows.length : 0);
+  let processed = 0;
+  let errors = 0;
+  const startTime = Date.now();
+
+  try {
+    // Step: Clear tables
+    if (doClear) {
+      if (doBDD2) {
+        log_msg('info', 'Limpiando tabla consultores...');
+        await truncateTable('consultores', config);
+        log_msg('ok', 'Tabla consultores limpiada');
+      }
+      if (doBDD1) {
+        log_msg('info', 'Limpiando tabla actividades...');
+        await truncateTable('actividades', config);
+        log_msg('ok', 'Tabla actividades limpiada');
+      }
+    }
+
+    // Step: Import BDD1 → actividades
+    if (doBDD1) {
+      log_msg('info', `Importando BDD1 → actividades (${bdd1Data.rows.length} filas)...`);
+      const rows = normalizeRows(bdd1Data.rows, 'bdd1');
+
+      // Validate required fields
+      const invalid = rows.filter(r => BDD1_REQUIRED.some(f => !r[f]));
+      if (invalid.length > 0) {
+        log_msg('warn', `${invalid.length} filas sin campos obligatorios (fy, month, customer, act_short, act_desc) - se omitirán`);
+      }
+      const valid = rows.filter(r => BDD1_REQUIRED.every(f => r[f]));
+
+      for (let i = 0; i < valid.length; i += batchSize) {
+        const batch = valid.slice(i, i + batchSize);
+        try {
+          await insertBatch('actividades', batch, config);
+          processed += batch.length;
+        } catch (err) {
+          errors += batch.length;
+          log_msg('err', `Error batch actividades [${i}-${i + batch.length}]: ${err.message}`);
+        }
+        setProgress(Math.round((processed / totalRows) * 100));
+      }
+      log_msg('ok', `actividades: ${processed} filas importadas`);
+    }
+
+    // Step: Import BDD2 → consultores
+    if (doBDD2) {
+      log_msg('info', `Importando BDD2 → consultores (${bdd2Data.rows.length} filas)...`);
+      const rows = normalizeRows(bdd2Data.rows, 'bdd2');
+
+      const invalid = rows.filter(r => BDD2_REQUIRED.some(f => !r[f]));
+      if (invalid.length > 0) {
+        log_msg('warn', `${invalid.length} filas sin campos obligatorios (month, act_short, profesional) - se omitirán`);
+      }
+      const valid = rows.filter(r => BDD2_REQUIRED.every(f => r[f]));
+
+      let bdd2Processed = 0;
+      for (let i = 0; i < valid.length; i += batchSize) {
+        const batch = valid.slice(i, i + batchSize);
+        try {
+          await insertBatch('consultores', batch, config);
+          bdd2Processed += batch.length;
+          processed += batch.length;
+        } catch (err) {
+          errors += batch.length;
+          log_msg('err', `Error batch consultores [${i}-${i + batch.length}]: ${err.message}`);
+        }
+        setProgress(Math.round((processed / totalRows) * 100));
+      }
+      log_msg('ok', `consultores: ${bdd2Processed} filas importadas`);
+    }
+
+    // Summary
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    setProgress(100);
+    log_msg('ok', `Importación completada en ${elapsed}s`);
+
+    document.getElementById('summary').style.display = 'grid';
+    document.getElementById('summary').innerHTML = `
+      <div class="summary-item"><div class="num">${processed}</div><div class="lbl">Filas importadas</div></div>
+      <div class="summary-item"><div class="num" style="color:${errors > 0 ? 'var(--red)' : 'var(--green)'}">${errors}</div><div class="lbl">Errores</div></div>
+      <div class="summary-item"><div class="num">${elapsed}s</div><div class="lbl">Tiempo</div></div>
+    `;
+
+  } catch (err) {
+    log_msg('err', `Error fatal: ${err.message}`);
+    console.error(err);
+  }
+
+  document.getElementById('btnImport').disabled = false;
+}
+
+async function clearTables() {
+  const config = getConfig();
+  if (!config.url || !config.key) {
+    alert('Completa la URL y Service Role Key de Supabase');
+    return;
+  }
+  if (!confirm('¿Estás seguro de que quieres eliminar TODOS los datos de ambas tablas?')) return;
+
+  document.getElementById('progressCard').style.display = 'block';
+  try {
+    log_msg('info', 'Limpiando tabla consultores...');
+    await truncateTable('consultores', config);
+    log_msg('ok', 'Tabla consultores limpiada');
+
+    log_msg('info', 'Limpiando tabla actividades...');
+    await truncateTable('actividades', config);
+    log_msg('ok', 'Tabla actividades limpiada');
+
+    log_msg('ok', 'Tablas limpiadas exitosamente');
+  } catch (err) {
+    log_msg('err', `Error: ${err.message}`);
+  }
+}
+
+// ─── UI helpers ───
+
+function setProgress(pct) {
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('progressLabel').textContent = pct + '%';
+}
+
+function log_clear() {
+  document.getElementById('log').innerHTML = '';
+  document.getElementById('progressCard').style.display = 'block';
+}
+
+function log_msg(type, msg) {
+  const log = document.getElementById('log');
+  const time = new Date().toLocaleTimeString('es-CL');
+  log.innerHTML += `<div><span style="color:#666">[${time}]</span> <span class="${type}">${msg}</span></div>`;
+  log.scrollTop = log.scrollHeight;
+}
+</script>
+</body>
+</html>

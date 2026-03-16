@@ -92,12 +92,17 @@ async function loadData() {
     // Transform actividades to array format matching original RAW.a
     // [0:month, 1:customer, 2:actShort, 3:actDesc, 4:tipoAT, 5:bu,
     //  6:prod, 7:cost, 8:margin, 9:billing, 10:jefatura,
-    //  11:diasImputados, 12:workingDays, 13:fy]
+    //  11:diasImputados, 12:workingDays, 13:fy, 14:pais, 15:quarter,
+    //  16:project, 17:projectName, 18:subproject, 19:subprojectName,
+    //  20:irm, 21:keyBuFinal, 22:starterDate, 23:finisherDate]
     ALL = actRows.map(r => [
       r.month, r.customer, r.act_short, r.act_desc,
       r.tipo_at, r.bu,
       Number(r.prod), Number(r.cost), Number(r.margin), Number(r.billing),
-      r.jefatura, Number(r.dias_imputados), Number(r.working_days), r.fy
+      r.jefatura, Number(r.dias_imputados), Number(r.working_days), r.fy,
+      r.pais || '', r.quarter || '',
+      r.project || '', r.project_name || '', r.subproject || '', r.subproject_name || '',
+      r.irm || '', r.key_bu_final || '', r.starter_date || '', r.finisher_date || ''
     ]);
 
     // Transform consultores to dict keyed by "actShort|month"
@@ -105,7 +110,7 @@ async function loadData() {
     consRows.forEach(r => {
       const key = `${r.act_short}|${r.month}`;
       if (!CONS[key]) CONS[key] = [];
-      CONS[key].push([r.profesional, r.jefe_directo]);
+      CONS[key].push([r.profesional || r.employee_name, r.jefe_directo]);
     });
 
     // Build filter options from data

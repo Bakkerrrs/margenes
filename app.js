@@ -28,6 +28,7 @@ let sChart, hChart;
 let sortCol = 8, sortDir = 'asc';
 let detSortCol = 'ad', detSortDir = 'asc';
 let activeTab = 'resumen';
+let selRange = -1; // selected RANGES index from hChart click (-1 = no filter)
 
 // ─── Supabase helpers ───
 
@@ -234,6 +235,7 @@ function fmt(n) { if (n == null || isNaN(n)) return '-'; const a = Math.abs(n), 
 // ─── Main refresh ───
 
 function refresh() {
+  selRange = -1; // reset range filter on any refresh
   const fd = flt(ALL), f = gf();
   const months = [...new Set(fd.map(a => a[0]))].sort();
 
@@ -327,8 +329,26 @@ function refresh() {
     }]
   });
 
+  // Click handler: filter table by margin range
+  document.getElementById('horizChart').onclick = function(evt) {
+    const els = hChart.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, true);
+    if (els.length > 0) {
+      const ri = els[0].index;
+      selRange = selRange === ri ? -1 : ri; // toggle
+    } else {
+      selRange = -1;
+    }
+    // Visual feedback: dim unselected bars
+    const bgColors = RANGES.map((r, i) => selRange === -1 || selRange === i ? r.color : r.color + '30');
+    hChart.data.datasets[0].backgroundColor = bgColors;
+    hChart.update();
+    const filtered = selRange === -1 ? md : md.filter(a => gri(a[8]) === selRange);
+    renderTable(filtered, f.month);
+  };
+
   document.getElementById('detailMonthLabel').textContent = mlabel(f.month);
-  renderTable(md, f.month);
+  const filtered = selRange === -1 ? md : md.filter(a => gri(a[8]) === selRange);
+  renderTable(filtered, f.month);
   if (activeTab === 'detalle') refreshDetalle();
 }
 
@@ -339,7 +359,8 @@ const SORT_COLS = [null, { k: 2, t: 's' }, { k: 3, t: 's' }, { k: 1, t: 's' }, {
 function doSort(ci) {
   if (sortCol === ci) { sortDir = sortDir === 'asc' ? 'desc' : 'asc'; } else { sortCol = ci; sortDir = 'asc'; }
   const f = gf(), fd = flt(ALL), md = fd.filter(a => a[0] === f.month);
-  renderTable(md, f.month);
+  const filtered = selRange === -1 ? md : md.filter(a => gri(a[8]) === selRange);
+  renderTable(filtered, f.month);
 }
 
 function renderTable(md, month) {

@@ -294,75 +294,89 @@ document.getElementById('fileInput').addEventListener('change', function(e) {
 // ─── Sheet parsing ───
 
 function parseSheet(sheet, colMap, numericSet) {
-  const json = XLSX.utils.sheet_to_json(sheet, { defval: '' });
-  if (json.length === 0) return { rows: [], mappedCols: 0, totalCols: 0, unmapped: [], headers: [] };
+  // Read as array-of-arrays to auto-detect the real header row
+  // (Excel files often have title/merged rows before the actual headers)
+  const aoa = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: false });
+  if (!aoa.length) return { rows: [], mappedCols: 0, totalCols: 0, unmapped: [], headers: [] };
 
-  const excelHeaders = Object.keys(json[0]);
+  // Known header names (lowercase) for matching
+  const knownHeaders = new Set(Object.keys(colMap).map(k => k.toLowerCase()));
+
+  // Scan first 20 rows to find the one with the most known headers
+  let bestRow = 0, bestCount = 0;
+  for (let i = 0; i < Math.min(aoa.length, 20); i++) {
+    const row = aoa[i];
+    if (!row || !row.length) continue;
+    let count = 0;
+    row.forEach(cell => {
+      if (cell == null) return;
+      const v = String(cell).trim().toLowerCase();
+      if (knownHeaders.has(v)) count++;
+    });
+    if (count > bestCount) { bestCount = count; bestRow = i; }
+  }
+
+  log_msg('info', `Header detectado en fila ${bestRow} con ${bestCount} coincidencias`);
+
+  // If no known headers found, show debug info
+  if (bestCount === 0) {
+    const sample = [];
+    for (let i = 0; i < Math.min(aoa.length, 10); i++) {
+      const row = aoa[i];
+      if (!row || !row.length) continue;
+      const cells = row.filter(c => c != null && String(c).trim()).slice(0, 6).map(c => String(c).trim());
+      if (cells.length) sample.push(`Fila ${i}: [${cells.join(' | ')}]`);
+    }
+    log_msg('warn', `Primeras filas: ${sample.join('; ')}`);
+    return { rows: [], mappedCols: 0, totalCols: aoa[0] ? aoa[0].length : 0, unmapped: [], headers: [] };
+  }
+
+  // Build header map: column index → db column name
+  const headerRow = aoa[bestRow].map(c => c == null ? '' : String(c).trim());
+  const hMap = {};       // index → dbColumn
   const mapped = [];
   const unmapped = [];
-  const headerMap = {}; // excelHeader → dbColumn
 
-  excelHeaders.forEach(h => {
-    const trimmed = h.trim();
-    // Try exact match first
-    if (colMap[trimmed]) {
-      headerMap[h] = colMap[trimmed];
-      mapped.push(trimmed);
-    } else {
-      // Try case-insensitive match
-      const key = Object.keys(colMap).find(k => k.toLowerCase() === trimmed.toLowerCase());
-      if (key) {
-        headerMap[h] = colMap[key];
-        mapped.push(trimmed);
-      } else {
-        unmapped.push(trimmed);
-      }
-    }
+  headerRow.forEach((h, idx) => {
+    if (!h) return;
+    const exact = colMap[h];
+    if (exact) { hMap[idx] = exact; mapped.push(h); return; }
+    const key = Object.keys(colMap).find(k => k.toLowerCase() === h.toLowerCase());
+    if (key) { hMap[idx] = colMap[key]; mapped.push(h); } else { unmapped.push(h); }
   });
 
-  const rows = json.map(row => {
+  // Parse data rows (everything after the header row)
+  const rows = [];
+  for (let i = bestRow + 1; i < aoa.length; i++) {
+    const raw = aoa[i];
+    if (!raw || !raw.length) continue;
+    const hasData = raw.some(c => c !== '' && c != null);
+    if (!hasData) continue;
+
     const obj = {};
-    Object.entries(headerMap).forEach(([excelCol, dbCol]) => {
-      let val = row[excelCol];
+    Object.entries(hMap).forEach(([idxStr, dbCol]) => {
+      const idx = parseInt(idxStr);
+      let val = raw[idx];
 
-      // Handle dates
-      if (val instanceof Date) {
-        val = formatDate(val);
-      }
+      if (val instanceof Date) val = formatDate(val);
+      if (typeof val === 'string' && val.startsWith('#')) val = null;
 
-      // Handle #N/D, #N/A, #REF!, etc.
-      if (typeof val === 'string' && val.startsWith('#')) {
-        val = null;
-      }
-
-      // Parse numeric columns
       if (numericSet.has(dbCol)) {
-        if (val === '' || val === null || val === undefined) {
-          val = 0;
-        } else {
-          const n = parseFloat(val);
-          val = isNaN(n) ? 0 : n;
-        }
+        val = (val === '' || val == null) ? 0 : (parseFloat(val) || 0);
       } else {
-        // Text column
-        if (val === null || val === undefined) {
-          val = '';
-        } else {
-          val = String(val).trim();
-        }
+        val = (val == null) ? '' : String(val).trim();
       }
-
       obj[dbCol] = val;
     });
-    return obj;
-  });
+    rows.push(obj);
+  }
 
   return {
     rows,
     mappedCols: mapped.length,
-    totalCols: excelHeaders.length,
-    unmapped,
-    headers: mapped.map(h => headerMap[excelHeaders.find(e => e.trim() === h)] || h)
+    totalCols: headerRow.filter(h => h).length,
+    unmapped: unmapped.filter(u => u && !u.startsWith('__')),
+    headers: mapped.map(h => hMap[headerRow.indexOf(h)] || h)
   };
 }
 
@@ -388,9 +402,15 @@ function formatMonth(val) {
   // YYYY-MM-DD
   if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.substring(0, 7);
 
-  // DD-MM-YYYY or DD/MM/YYYY
+  // US format M/D/YY or M/D/YYYY (last day of month → extract month)
+  const mdy = s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{2,4})$/);
+  if (mdy) {
+    let yr = parseInt(mdy[3]); if (yr < 100) yr += 2000;
+    return `${yr}-${mdy[1].padStart(2, '0')}`;
+  }
+  // DD-MM-YYYY or DD/MM/YYYY (day > 12 distinguishes from US)
   const dmy = s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/);
-  if (dmy) return `${dmy[3]}-${dmy[2].padStart(2, '0')}`;
+  if (dmy && parseInt(dmy[1]) > 12) return `${dmy[3]}-${dmy[2].padStart(2, '0')}`;
 
   // "ene-26", "feb-25", etc.
   const mnames = { 'ene':'01','feb':'02','mar':'03','abr':'04','may':'05','jun':'06',

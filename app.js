@@ -21,12 +21,15 @@ function mlabel(m) { const [y, mm] = m.split('-'); return MNAMES[parseInt(mm) - 
 // Data arrays (populated from Supabase)
 let ALL = [];   // actividades as arrays matching original format
 let CONS = {};   // consultores keyed by "actShort|month"
+let HOLI = {};   // holidays keyed by "employee|month" → total dias
+let CONS_RAW = []; // raw consultores rows for Consultor tab
 let F = { fy: [], bu: [], ta: [], cu: [], je: [] };  // filter options
 
 let sChart, hChart;
 let sortCol = 8, sortDir = 'asc';
 let detSortCol = 'ad', detSortDir = 'asc';
 let activeTab = 'resumen';
+let selRange = -1; // selected RANGES index from hChart click (-1 = no filter)
 
 // ─── Supabase helpers ───
 
@@ -91,26 +94,36 @@ async function loadData() {
 
     // Transform actividades to array format matching original RAW.a
     // [0:month, 1:customer, 2:actShort, 3:actDesc, 4:tipoAT, 5:bu,
-    //  6:prod, 7:cost, 8:margin, 9:billing, 10:jefatura,
+    //  6:prod, 7:total_costo_corregido, 8:margin (calculated), 9:billing, 10:jefatura,
     //  11:diasImputados, 12:workingDays, 13:fy, 14:pais, 15:quarter,
     //  16:project, 17:projectName, 18:subproject, 19:subprojectName,
     //  20:irm, 21:keyBuFinal, 22:starterDate, 23:finisherDate]
     ALL = actRows.map(r => [
       r.month, r.customer, r.act_short, r.act_desc,
       r.tipo_at, r.bu,
-      Number(r.prod), Number(r.cost), Number(r.margin), Number(r.billing),
+      Number(r.prod), Number(r.total_costo_corregido), Number(r.prod) !== 0 ? (Number(r.prod) + Number(r.total_costo_corregido)) / Number(r.prod) : 0, Number(r.billing),
       r.jefatura, Number(r.dias_imputados), Number(r.working_days), r.fy,
       r.pais || '', r.quarter || '',
       r.project || '', r.project_name || '', r.subproject || '', r.subproject_name || '',
       r.irm || '', r.key_bu_final || '', r.starter_date || '', r.finisher_date || ''
     ]);
 
+    // Store raw consultores for Consultor tab
+    CONS_RAW = consRows;
+
     // Transform consultores to dict keyed by "actShort|month"
     CONS = {};
+    HOLI = {};
     consRows.forEach(r => {
       const key = `${r.act_short}|${r.month}`;
       if (!CONS[key]) CONS[key] = [];
-      CONS[key].push([r.profesional || r.employee_name, r.jefe_directo]);
+      CONS[key].push([r.profesional || r.employee_name, r.jefe_directo, r.responsible_id || '']);
+      // Build holiday lookup: employee|month → dias
+      const name = r.profesional || r.employee_name;
+      if (r.report_code === 'Holiday' && name && r.month) {
+        const hKey = `${name}|${r.month}`;
+        HOLI[hKey] = (HOLI[hKey] || 0) + (Number(r.dias) || 0);
+      }
     });
 
     // Build filter options from data
@@ -136,10 +149,7 @@ function initUI() {
   F.fy.forEach(fy => { fySel.innerHTML += `<option value="${fy}">${fy}</option>`; });
   fySel.value = F.fy[F.fy.length - 1];
 
-  F.bu.forEach(v => { if (v && v !== '0') document.getElementById('filterBU').innerHTML += `<option value="${v}">${v}</option>`; });
-  F.ta.forEach(v => { document.getElementById('filterTipoAT').innerHTML += `<option value="${v}">${v}</option>`; });
-  F.cu.forEach(v => { document.getElementById('filterCustomer').innerHTML += `<option value="${v}">${v}</option>`; });
-  F.je.forEach(v => { document.getElementById('filterJefatura').innerHTML += `<option value="${v}">${v}</option>`; });
+  // BU, TipoAT, Customer, Jefatura and Month filters are populated dynamically in onFYChange()
 
   document.getElementById('legend').innerHTML = RANGES.map(r =>
     `<div class="legend-item"><div class="legend-dot" style="background:${r.color}"></div>${r.label}</div>`
@@ -165,11 +175,32 @@ function initUI() {
 function onFYChange() {
   const fy = document.getElementById('filterFY').value;
   document.getElementById('fyBadge').textContent = 'FY ' + fy;
-  const fyMonths = [...new Set(ALL.filter(a => a[13] === fy).map(a => a[0]))].sort();
+  const fyData = ALL.filter(a => a[13] === fy);
+
+  function updateSelect(id, values, prevVal, allLabel) {
+    const sel = document.getElementById(id);
+    sel.innerHTML = allLabel ? `<option value="">${allLabel}</option>` : '';
+    values.forEach(v => { sel.innerHTML += `<option value="${v}">${v}</option>`; });
+    sel.value = values.includes(prevVal) ? prevVal : (allLabel ? '' : values[values.length - 1] || '');
+  }
+
+  const fyBU = [...new Set(fyData.map(a => a[5]))].filter(v => v && v !== '0').sort();
+  const fyTA = [...new Set(fyData.map(a => a[4]))].sort();
+  const fyCU = [...new Set(fyData.map(a => a[1]))].sort();
+  const fyJE = [...new Set(fyData.map(a => a[10]))].sort();
+  const fyMonths = [...new Set(fyData.map(a => a[0]))].sort();
+
+  updateSelect('filterBU', fyBU, document.getElementById('filterBU').value, 'Todas');
+  updateSelect('filterTipoAT', fyTA, document.getElementById('filterTipoAT').value, 'Todas');
+  updateSelect('filterCustomer', fyCU, document.getElementById('filterCustomer').value, 'Todas');
+  updateSelect('filterJefatura', fyJE, document.getElementById('filterJefatura').value, 'Todas');
+
+  const prevMonth = document.getElementById('filterMonth').value;
   const ms = document.getElementById('filterMonth');
   ms.innerHTML = '';
   fyMonths.forEach(m => { ms.innerHTML += `<option value="${m}">${mlabel(m)}</option>`; });
-  ms.value = fyMonths[fyMonths.length - 1] || '';
+  ms.value = fyMonths.includes(prevMonth) ? prevMonth : fyMonths[fyMonths.length - 1] || '';
+
   refresh();
 }
 
@@ -208,6 +239,7 @@ function fmt(n) { if (n == null || isNaN(n)) return '-'; const a = Math.abs(n), 
 // ─── Main refresh ───
 
 function refresh() {
+  selRange = -1; // reset range filter on any refresh
   const fd = flt(ALL), f = gf();
   const months = [...new Set(fd.map(a => a[0]))].sort();
 
@@ -301,8 +333,26 @@ function refresh() {
     }]
   });
 
+  // Click handler: filter table by margin range
+  document.getElementById('horizChart').onclick = function(evt) {
+    const els = hChart.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, true);
+    if (els.length > 0) {
+      const ri = els[0].index;
+      selRange = selRange === ri ? -1 : ri; // toggle
+    } else {
+      selRange = -1;
+    }
+    // Visual feedback: dim unselected bars
+    const bgColors = RANGES.map((r, i) => selRange === -1 || selRange === i ? r.color : r.color + '30');
+    hChart.data.datasets[0].backgroundColor = bgColors;
+    hChart.update();
+    const filtered = selRange === -1 ? md : md.filter(a => gri(a[8]) === selRange);
+    renderTable(filtered, f.month);
+  };
+
   document.getElementById('detailMonthLabel').textContent = mlabel(f.month);
-  renderTable(md, f.month);
+  const filtered = selRange === -1 ? md : md.filter(a => gri(a[8]) === selRange);
+  renderTable(filtered, f.month);
   if (activeTab === 'detalle') refreshDetalle();
 }
 
@@ -313,7 +363,8 @@ const SORT_COLS = [null, { k: 2, t: 's' }, { k: 3, t: 's' }, { k: 1, t: 's' }, {
 function doSort(ci) {
   if (sortCol === ci) { sortDir = sortDir === 'asc' ? 'desc' : 'asc'; } else { sortCol = ci; sortDir = 'asc'; }
   const f = gf(), fd = flt(ALL), md = fd.filter(a => a[0] === f.month);
-  renderTable(md, f.month);
+  const filtered = selRange === -1 ? md : md.filter(a => gri(a[8]) === selRange);
+  renderTable(filtered, f.month);
 }
 
 function renderTable(md, month) {
@@ -341,8 +392,8 @@ function renderTable(md, month) {
       + `<td class="td-mono" style="text-align:right">${fmt(a[9])}</td></tr>`;
     if (hasC) {
       h += `<tr id="cr${idx}" class="consultant-row" style="display:none"><td></td><td colspan="9"><div style="padding:6px 0">`
-        + `<table style="width:100%;font-size:12px"><tr><th style="padding:5px 10px;text-align:left">Profesional</th><th style="padding:5px 10px;text-align:left">Jefe Directo</th></tr>`;
-      CONS[key].forEach(c => { h += `<tr><td style="padding:5px 10px;border-bottom:1px solid var(--border2)">${c[0]}</td><td style="padding:5px 10px;border-bottom:1px solid var(--border2)">${c[1]}</td></tr>`; });
+        + `<table style="width:100%;font-size:12px"><tr><th style="padding:5px 10px;text-align:left">Profesional</th><th style="padding:5px 10px;text-align:left">Jefe Directo</th><th style="padding:5px 10px;text-align:left">ADV</th></tr>`;
+      CONS[key].forEach(c => { h += `<tr><td style="padding:5px 10px;border-bottom:1px solid var(--border2)">${c[0]}</td><td style="padding:5px 10px;border-bottom:1px solid var(--border2)">${c[1]}</td><td style="padding:5px 10px;border-bottom:1px solid var(--border2)">${c[2]}</td></tr>`; });
       h += '</table></div></td></tr>';
     }
   });
@@ -365,8 +416,10 @@ function switchTab(tab) {
   document.querySelector(`.tab[onclick="switchTab('${tab}')"]`).classList.add('active');
   document.getElementById('tabResumen').style.display = tab === 'resumen' ? '' : 'none';
   document.getElementById('tabDetalle').style.display = tab === 'detalle' ? '' : 'none';
+  document.getElementById('tabConsultor').style.display = tab === 'consultor' ? '' : 'none';
   document.getElementById('tabImportar').style.display = tab === 'importar' ? '' : 'none';
   if (tab === 'detalle') refreshDetalle();
+  if (tab === 'consultor') initConsultorTab();
 }
 
 // ─── Detalle Tab ───
@@ -447,6 +500,69 @@ function detSort(col) {
   refreshDetalle();
 }
 
+// ─── Consultor Tab ───
+
+let consultorInited = false;
+
+function initConsultorTab() {
+  if (consultorInited) return;
+  consultorInited = true;
+  const names = [...new Set(CONS_RAW.map(r => r.profesional || r.employee_name).filter(Boolean))].sort();
+  const sel = document.getElementById('consultorSelect');
+  names.forEach(n => { sel.innerHTML += `<option value="${n}">${n}</option>`; });
+}
+
+function refreshConsultor() {
+  const name = document.getElementById('consultorSelect').value;
+  const wrap = document.getElementById('consultorTableWrap');
+  if (!name) { wrap.innerHTML = '<p style="color:var(--text3);padding:20px;text-align:center">Selecciona un consultor para ver su historial</p>'; return; }
+
+  // Filter rows for this consultant, get activity description from ALL lookup
+  const actDesc = {}; ALL.forEach(a => { actDesc[a[2]] = a[3]; });
+  const rows = CONS_RAW
+    .filter(r => (r.profesional || r.employee_name) === name)
+    .map(r => ({
+      act: r.act_short || '',
+      desc: actDesc[r.act_short] || r.activity_name || '',
+      month: r.month || '',
+      adv: r.responsible_id || '',
+      jef: r.jefe_directo || '',
+      dias: Number(r.dias) || 0,
+      costo: Number(r.costo_mensual) || 0,
+      report: r.report_code || ''
+    }))
+    .sort((a, b) => b.month.localeCompare(a.month) || a.act.localeCompare(b.act));
+
+  let h = '<table><thead><tr>';
+  h += '<th class="sortable" style="cursor:default">Actividad</th>';
+  h += '<th class="sortable" style="cursor:default">Descripci\u00f3n</th>';
+  h += '<th class="sortable" style="cursor:default">Mes</th>';
+  h += '<th class="sortable" style="cursor:default">ADV</th>';
+  h += '<th class="sortable" style="cursor:default">Jefatura</th>';
+  h += '<th class="sortable" style="cursor:default;text-align:right">D\u00edas</th>';
+  h += '<th class="sortable" style="cursor:default;text-align:right">Costo</th>';
+  h += '</tr></thead><tbody>';
+
+  rows.forEach(r => {
+    h += '<tr>';
+    h += `<td class="td-mono" style="font-size:11px">${r.act}</td>`;
+    h += `<td class="td-name">${r.desc}</td>`;
+    h += `<td class="td-mono" style="font-size:11px">${mlabel(r.month)}</td>`;
+    h += `<td class="td-name" style="font-size:11px">${r.adv}</td>`;
+    h += `<td class="td-name" style="font-size:11px">${r.jef}</td>`;
+    h += `<td class="td-mono" style="text-align:right">${r.dias.toFixed(1)}</td>`;
+    h += `<td class="td-mono" style="text-align:right;color:${r.costo < 0 ? '#c0392b' : '#229954'}">${fmt(r.costo)}</td>`;
+    h += '</tr>';
+  });
+
+  if (rows.length === 0) {
+    h += '<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px">Sin registros</td></tr>';
+  }
+
+  h += '</tbody></table>';
+  wrap.innerHTML = h;
+}
+
 // ─── Hover Tooltip ───
 
 const tip = document.getElementById('hoverTip');
@@ -455,19 +571,23 @@ function showTip(ev, el) {
   const ds = el.dataset; const as = ds.as, mo = ds.mo, pr = parseFloat(ds.pr), co = parseFloat(ds.co), mg = ds.mg;
   const di = parseFloat(ds.di), wd = parseFloat(ds.wd), adrV = parseFloat(ds.adr), adcV = parseFloat(ds.adc);
   const key = `${as}|${mo}`; const cons = CONS[key] || [];
+  // Calculate total holiday days for professionals on this activity-month
+  const uniqueProfs = [...new Set(cons.map(c => c[0]))];
+  const totalHoli = uniqueProfs.reduce((sum, name) => sum + (HOLI[`${name}|${mo}`] || 0), 0);
   let html = `<div style="margin-bottom:8px;font-weight:700;color:var(--accent);font-size:13px">${mlabel(mo)}</div>`;
   html += `<div class="tip-grid"><div class="tip-kpi"><div class="lbl">Producci\u00f3n</div><div class="val">${fmt(pr)}</div></div>`
     + `<div class="tip-kpi"><div class="lbl">Costo</div><div class="val" style="color:${co < 0 ? '#c0392b' : '#229954'}">${fmt(co)}</div></div>`
     + `<div class="tip-kpi"><div class="lbl">Margen</div><div class="val">${mg}${mg !== 'N/A' ? '%' : ''}</div></div></div>`;
-  html += `<div class="tip-grid g4">`
+  html += `<div class="tip-grid g5">`
     + `<div class="tip-kpi"><div class="lbl">D\u00edas Imput.</div><div class="val">${di.toFixed(1)}</div></div>`
     + `<div class="tip-kpi"><div class="lbl">Working Days</div><div class="val">${wd}</div></div>`
+    + `<div class="tip-kpi"><div class="lbl">Holidays</div><div class="val" style="color:#8e44ad">${totalHoli.toFixed(1)}</div></div>`
     + `<div class="tip-kpi"><div class="lbl">ADR</div><div class="val" style="color:var(--accent)">${fmt(adrV)}</div></div>`
     + `<div class="tip-kpi"><div class="lbl">ADC</div><div class="val" style="color:#c0392b">${fmt(adcV)}</div></div></div>`;
   if (cons.length > 0) {
     html += `<div style="border-top:1px solid var(--border2);padding-top:6px;margin-top:2px">`;
     html += `<div style="font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:var(--text3);margin-bottom:4px;font-weight:600">Profesionales (${cons.length})</div>`;
-    cons.forEach(c => { html += `<div style="display:flex;justify-content:space-between;gap:12px;padding:2px 0;border-bottom:1px solid #f0f0f0"><span>${c[0]}</span><span style="color:var(--text3);font-size:11px">${c[1]}</span></div>`; });
+    cons.forEach(c => { const hd = HOLI[`${c[0]}|${mo}`] || 0; html += `<div style="display:flex;justify-content:space-between;gap:12px;padding:2px 0;border-bottom:1px solid #f0f0f0"><span>${c[0]}</span><span style="color:#8e44ad;font-size:11px;min-width:40px;text-align:right">${hd > 0 ? hd.toFixed(1) + 'd vac' : ''}</span>${c[2] ? `<span style="color:var(--text3);font-size:11px">${c[2]}</span>` : ''}<span style="color:var(--text3);font-size:11px">${c[1]}</span></div>`; });
     html += `</div>`;
   }
   tip.innerHTML = html; tip.style.display = 'block';
@@ -487,7 +607,7 @@ function hideTip() { tip.style.display = 'none'; }
 let impWorkbook = null, impBDD1 = null, impBDD2 = null;
 
 const IMP_BDD1_MAP = {
-  'Ejercicio':'fy','Month':'month','Customer':'customer',
+  'Ejercicio':'fy','Ejercicio actividad':'fy','Month':'month','Customer':'customer',
   'Activity Short Name':'act_short','Activity Description':'act_desc',
   'IRM vs2':'irm','Income recognition Method':'irm',
   'End of period WIP':'wip','Total Facturacion mensual':'billing',
@@ -497,8 +617,10 @@ const IMP_BDD1_MAP = {
   'ADV - Responsible ID':'adv_responsible_id','Project':'project',
   'Project name':'project_name','Subproject':'subproject',
   'Subproject name':'subproject_name','Tipo-AT':'tipo_at',
-  'Key BU FINAL':'key_bu_final','Working Days':'working_days',
-  'Total Costo Corregido':'total_costo_corregido','UF Gestionable':'uf_gestionable',
+  'Key BU FINAL':'key_bu_final','Key':'key_bu_final','BU FINAL':'bu',
+  'Working Days':'working_days',
+  'Total Costo Corregido':'total_costo_corregido',
+  'UF Gestionable':'uf_gestionable','Gestionable':'uf_gestionable',
   'OPS':'ops','AUX_AMR':'aux_amr','Quarter':'quarter','Pais':'pais',
   'Subco':'subco','Standarized Project':'standarized_project',
   'BU FINAL 2':'bu','Code Report':'code_report','Desc Report':'desc_report',
@@ -525,6 +647,8 @@ const IMP_BDD2_MAP = {
   'BU-Jefatura':'bu_jefatura','Grupo Cliente':'grupo_cliente',
   'TipoAT':'tipo_at','Pais':'pais','Subco':'subco',
   'Standarized Project':'standarized_project','Code Report':'code_report',
+  'Costo mensual IFS':'costo_mensual','BU FINAL 2':'bu2',
+  'Pais Subco':'pais','Mission Yerie':'mission',
   'Mission':'mission','Yerie':'yerie','BM':'bm',
   'Employee ID 2':'employee_id_2','Employee Name 2':'employee_name_2','RUT 2':'rut_2'
 };
@@ -550,8 +674,15 @@ function impFormatMonth(val) {
   const s = String(val).trim();
   if (/^\d{4}-\d{2}$/.test(s)) return s;
   if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.substring(0,7);
+  // US format M/D/YY or M/D/YYYY (last day of month → extract month)
+  const mdy = s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{2,4})$/);
+  if (mdy) {
+    let yr = parseInt(mdy[3]); if (yr < 100) yr += 2000;
+    return `${yr}-${mdy[1].padStart(2,'0')}`;
+  }
+  // DD-MM-YYYY or DD/MM/YYYY (day > 12 distinguishes from US)
   const dmy = s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/);
-  if (dmy) return `${dmy[3]}-${dmy[2].padStart(2,'0')}`;
+  if (dmy && parseInt(dmy[1]) > 12) return `${dmy[3]}-${dmy[2].padStart(2,'0')}`;
   const mn = {'ene':'01','feb':'02','mar':'03','abr':'04','may':'05','jun':'06','jul':'07','ago':'08','sep':'09','oct':'10','nov':'11','dic':'12'};
   const mx = s.match(/^([a-z]{3})-(\d{2})$/i);
   if (mx && mn[mx[1].toLowerCase()]) return `${parseInt(mx[2])+2000}-${mn[mx[1].toLowerCase()]}`;
@@ -569,29 +700,84 @@ function impFormatDate(d) {
 }
 
 function impParseSheet(sheet, colMap, numSet) {
-  const json = XLSX.utils.sheet_to_json(sheet, { defval: '' });
-  if (!json.length) return { rows: [], mappedCols: 0, totalCols: 0, unmapped: [] };
-  const headers = Object.keys(json[0]);
+  // Read as raw array of arrays to find the real header row
+  // (Excel files often have title/merged rows before the actual headers)
+  const aoa = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: true });
+  if (!aoa.length) return { rows: [], mappedCols: 0, totalCols: 0, unmapped: [], debug: 'empty sheet' };
+
+  // Known header names to search for (lowercase)
+  const knownHeaders = new Set(Object.keys(colMap).map(k => k.toLowerCase()));
+
+  // Find the row that contains the most known headers (scan first 20 rows)
+  let bestRow = 0, bestCount = 0;
+  const debugRows = [];
+  for (let i = 0; i < Math.min(aoa.length, 20); i++) {
+    const row = aoa[i];
+    if (!row || !row.length) continue;
+    let count = 0;
+    const matched = [];
+    row.forEach(cell => {
+      if (cell == null) return;
+      const v = String(cell).trim().toLowerCase();
+      if (knownHeaders.has(v)) { count++; matched.push(String(cell).trim()); }
+    });
+    if (count > 0) debugRows.push(`Fila ${i}: ${count} matches (${matched.slice(0,5).join(', ')}${matched.length>5?'...':''})`);
+    if (count > bestCount) { bestCount = count; bestRow = i; }
+  }
+
+  const debugInfo = `Header detectado en fila ${bestRow} con ${bestCount} coincidencias. ${debugRows.join('; ')}`;
+
+  // If no headers found at all, return debug info
+  if (bestCount === 0) {
+    // Show what's actually in the first 10 rows for debugging
+    const sampleRows = [];
+    for (let i = 0; i < Math.min(aoa.length, 10); i++) {
+      const row = aoa[i];
+      if (!row || !row.length) continue;
+      const cells = row.filter(c => c != null && String(c).trim()).slice(0, 6).map(c => String(c).trim());
+      if (cells.length) sampleRows.push(`Fila ${i}: [${cells.join(' | ')}]`);
+    }
+    return { rows: [], mappedCols: 0, totalCols: aoa[0] ? aoa[0].length : 0, unmapped: [],
+      debug: `No se encontraron headers conocidos. Primeras filas: ${sampleRows.join('; ')}` };
+  }
+
+  // Use bestRow as headers, everything after as data
+  const headerRow = aoa[bestRow].map(c => c == null ? '' : String(c).trim());
   const hMap = {}, unmapped = [];
   let mapped = 0;
-  headers.forEach(h => {
-    const t = h.trim();
-    const k = colMap[t] || colMap[Object.keys(colMap).find(k2 => k2.toLowerCase() === t.toLowerCase())];
-    if (k) { hMap[h] = k; mapped++; } else { unmapped.push(t); }
+
+  headerRow.forEach((h, idx) => {
+    if (!h) return;
+    const k = colMap[h] || colMap[Object.keys(colMap).find(k2 => k2.toLowerCase() === h.toLowerCase())];
+    if (k) { hMap[idx] = k; mapped++; } else { unmapped.push(h); }
   });
-  const rows = json.map(row => {
+
+  const rows = [];
+  for (let i = bestRow + 1; i < aoa.length; i++) {
+    const raw = aoa[i];
+    if (!raw || !raw.length) continue;
+    const hasData = raw.some(c => c !== '' && c != null);
+    if (!hasData) continue;
+
     const obj = {};
-    Object.entries(hMap).forEach(([exH, dbC]) => {
-      let v = row[exH];
+    Object.entries(hMap).forEach(([idxStr, dbC]) => {
+      const idx = parseInt(idxStr);
+      let v = raw[idx];
       if (v instanceof Date) v = impFormatDate(v);
       if (typeof v === 'string' && v.startsWith('#')) v = null;
-      if (numSet.has(dbC)) { v = (v === '' || v == null) ? 0 : (parseFloat(v) || 0); }
+      if (numSet.has(dbC)) {
+        if (v === '' || v == null) { v = 0; }
+        else if (typeof v === 'number') { v = v; }
+        else { v = parseFloat(String(v).replace(/\./g, '').replace(',', '.')) || 0; }
+      }
       else { v = (v == null) ? '' : String(v).trim(); }
       obj[dbC] = v;
     });
-    return obj;
-  });
-  return { rows, mappedCols: mapped, totalCols: headers.length, unmapped };
+    rows.push(obj);
+  }
+
+  return { rows, mappedCols: mapped, totalCols: headerRow.filter(h => h).length,
+    unmapped: unmapped.filter(u => u && !u.startsWith('__')), debug: debugInfo };
 }
 
 function impPreview(title, data) {
@@ -643,7 +829,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (s1) {
           impBDD1 = impParseSheet(impWorkbook.Sheets[s1], IMP_BDD1_MAP, IMP_NUM1);
-          impLog('ok', `BDD1 ("${s1}"): ${impBDD1.rows.length} filas, ${impBDD1.mappedCols}/${impBDD1.totalCols} cols mapeadas`);
+          impLog('ok', `BDD1 ("${s1}"): ${impBDD1.rows.length} filas, ${impBDD1.mappedCols}/${impBDD1.totalCols} cols mapeadas [v2]`);
+          if (impBDD1.debug) impLog('info', `BDD1 debug: ${impBDD1.debug}`);
           if (impBDD1.unmapped.length) impLog('warn', `BDD1 sin mapear: ${impBDD1.unmapped.join(', ')}`);
           preview += impPreview('BDD1 → actividades', impBDD1);
         } else { impLog('err', 'Hoja BDD1 no encontrada'); impBDD1 = null; }
@@ -651,7 +838,8 @@ document.addEventListener('DOMContentLoaded', function() {
         if (s2) {
           impBDD2 = impParseSheet(impWorkbook.Sheets[s2], IMP_BDD2_MAP, IMP_NUM2);
           impBDD2.rows.forEach(r => { if (!r.profesional && r.employee_name) r.profesional = r.employee_name; });
-          impLog('ok', `BDD2 ("${s2}"): ${impBDD2.rows.length} filas, ${impBDD2.mappedCols}/${impBDD2.totalCols} cols mapeadas`);
+          impLog('ok', `BDD2 ("${s2}"): ${impBDD2.rows.length} filas, ${impBDD2.mappedCols}/${impBDD2.totalCols} cols mapeadas [v2]`);
+          if (impBDD2.debug) impLog('info', `BDD2 debug: ${impBDD2.debug}`);
           if (impBDD2.unmapped.length) impLog('warn', `BDD2 sin mapear: ${impBDD2.unmapped.join(', ')}`);
           preview += impPreview('BDD2 → consultores', impBDD2);
         } else { impLog('err', 'Hoja BDD2 no encontrada'); impBDD2 = null; }
@@ -721,10 +909,18 @@ async function impStart() {
 
     if (do1) {
       impLog('info', `BDD1 → actividades (${impBDD1.rows.length} filas)...`);
+      // Log mapped columns for debugging
+      if (impBDD1.rows.length > 0) {
+        const sampleKeys = Object.keys(impBDD1.rows[0]);
+        impLog('info', `Columnas mapeadas BDD1: ${sampleKeys.join(', ')}`);
+        const reqFields = ['fy','month','customer','act_short','act_desc'];
+        const missing = reqFields.filter(f => !sampleKeys.includes(f));
+        if (missing.length) impLog('warn', `Columnas obligatorias NO mapeadas: ${missing.join(', ')}`);
+      }
       const rows = impNormalize(impBDD1.rows, 'bdd1');
-      const valid = rows.filter(r => r.fy && r.month && r.customer && r.act_short && r.act_desc);
+      const valid = rows.filter(r => r.fy && r.month && r.act_short);
       const skipped = rows.length - valid.length;
-      if (skipped) impLog('warn', `${skipped} filas sin campos obligatorios omitidas`);
+      if (skipped) impLog('warn', `${skipped} filas sin fy/month/act_short omitidas`);
 
       for (let i = 0; i < valid.length; i += bs) {
         const batch = valid.slice(i, i + bs);

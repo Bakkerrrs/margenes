@@ -136,10 +136,7 @@ function initUI() {
   F.fy.forEach(fy => { fySel.innerHTML += `<option value="${fy}">${fy}</option>`; });
   fySel.value = F.fy[F.fy.length - 1];
 
-  F.bu.forEach(v => { if (v && v !== '0') document.getElementById('filterBU').innerHTML += `<option value="${v}">${v}</option>`; });
-  F.ta.forEach(v => { document.getElementById('filterTipoAT').innerHTML += `<option value="${v}">${v}</option>`; });
-  F.cu.forEach(v => { document.getElementById('filterCustomer').innerHTML += `<option value="${v}">${v}</option>`; });
-  F.je.forEach(v => { document.getElementById('filterJefatura').innerHTML += `<option value="${v}">${v}</option>`; });
+  // BU, TipoAT, Customer, Jefatura and Month filters are populated dynamically in onFYChange()
 
   document.getElementById('legend').innerHTML = RANGES.map(r =>
     `<div class="legend-item"><div class="legend-dot" style="background:${r.color}"></div>${r.label}</div>`
@@ -165,11 +162,32 @@ function initUI() {
 function onFYChange() {
   const fy = document.getElementById('filterFY').value;
   document.getElementById('fyBadge').textContent = 'FY ' + fy;
-  const fyMonths = [...new Set(ALL.filter(a => a[13] === fy).map(a => a[0]))].sort();
+  const fyData = ALL.filter(a => a[13] === fy);
+
+  function updateSelect(id, values, prevVal, allLabel) {
+    const sel = document.getElementById(id);
+    sel.innerHTML = allLabel ? `<option value="">${allLabel}</option>` : '';
+    values.forEach(v => { sel.innerHTML += `<option value="${v}">${v}</option>`; });
+    sel.value = values.includes(prevVal) ? prevVal : (allLabel ? '' : values[values.length - 1] || '');
+  }
+
+  const fyBU = [...new Set(fyData.map(a => a[5]))].filter(v => v && v !== '0').sort();
+  const fyTA = [...new Set(fyData.map(a => a[4]))].sort();
+  const fyCU = [...new Set(fyData.map(a => a[1]))].sort();
+  const fyJE = [...new Set(fyData.map(a => a[10]))].sort();
+  const fyMonths = [...new Set(fyData.map(a => a[0]))].sort();
+
+  updateSelect('filterBU', fyBU, document.getElementById('filterBU').value, 'Todas');
+  updateSelect('filterTipoAT', fyTA, document.getElementById('filterTipoAT').value, 'Todas');
+  updateSelect('filterCustomer', fyCU, document.getElementById('filterCustomer').value, 'Todas');
+  updateSelect('filterJefatura', fyJE, document.getElementById('filterJefatura').value, 'Todas');
+
+  const prevMonth = document.getElementById('filterMonth').value;
   const ms = document.getElementById('filterMonth');
   ms.innerHTML = '';
   fyMonths.forEach(m => { ms.innerHTML += `<option value="${m}">${mlabel(m)}</option>`; });
-  ms.value = fyMonths[fyMonths.length - 1] || '';
+  ms.value = fyMonths.includes(prevMonth) ? prevMonth : fyMonths[fyMonths.length - 1] || '';
+
   refresh();
 }
 

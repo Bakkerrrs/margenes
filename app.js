@@ -112,7 +112,7 @@ async function loadData() {
     consRows.forEach(r => {
       const key = `${r.act_short}|${r.month}`;
       if (!CONS[key]) CONS[key] = [];
-      CONS[key].push([r.profesional || r.employee_name, r.jefe_directo]);
+      CONS[key].push([r.profesional || r.employee_name, r.jefe_directo, r.responsible_id || '']);
       // Build holiday lookup: employee|month → dias
       const name = r.profesional || r.employee_name;
       if (r.report_code === 'Holiday' && name && r.month) {
@@ -497,7 +497,7 @@ function showTip(ev, el) {
   if (cons.length > 0) {
     html += `<div style="border-top:1px solid var(--border2);padding-top:6px;margin-top:2px">`;
     html += `<div style="font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:var(--text3);margin-bottom:4px;font-weight:600">Profesionales (${cons.length})</div>`;
-    cons.forEach(c => { const hd = HOLI[`${c[0]}|${mo}`] || 0; html += `<div style="display:flex;justify-content:space-between;gap:12px;padding:2px 0;border-bottom:1px solid #f0f0f0"><span>${c[0]}</span><span style="color:#8e44ad;font-size:11px;min-width:40px;text-align:right">${hd > 0 ? hd.toFixed(1) + 'd vac' : ''}</span><span style="color:var(--text3);font-size:11px">${c[1]}</span></div>`; });
+    cons.forEach(c => { const hd = HOLI[`${c[0]}|${mo}`] || 0; html += `<div style="display:flex;justify-content:space-between;gap:12px;padding:2px 0;border-bottom:1px solid #f0f0f0"><span>${c[0]}</span><span style="color:#8e44ad;font-size:11px;min-width:40px;text-align:right">${hd > 0 ? hd.toFixed(1) + 'd vac' : ''}</span>${c[2] ? `<span style="color:var(--text3);font-size:11px">${c[2]}</span>` : ''}<span style="color:var(--text3);font-size:11px">${c[1]}</span></div>`; });
     html += `</div>`;
   }
   tip.innerHTML = html; tip.style.display = 'block';

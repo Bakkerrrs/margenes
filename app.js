@@ -554,8 +554,15 @@ function impFormatMonth(val) {
   const s = String(val).trim();
   if (/^\d{4}-\d{2}$/.test(s)) return s;
   if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.substring(0,7);
+  // US format M/D/YY or M/D/YYYY (last day of month → extract month)
+  const mdy = s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{2,4})$/);
+  if (mdy) {
+    let yr = parseInt(mdy[3]); if (yr < 100) yr += 2000;
+    return `${yr}-${mdy[1].padStart(2,'0')}`;
+  }
+  // DD-MM-YYYY or DD/MM/YYYY (day > 12 distinguishes from US)
   const dmy = s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/);
-  if (dmy) return `${dmy[3]}-${dmy[2].padStart(2,'0')}`;
+  if (dmy && parseInt(dmy[1]) > 12) return `${dmy[3]}-${dmy[2].padStart(2,'0')}`;
   const mn = {'ene':'01','feb':'02','mar':'03','abr':'04','may':'05','jun':'06','jul':'07','ago':'08','sep':'09','oct':'10','nov':'11','dic':'12'};
   const mx = s.match(/^([a-z]{3})-(\d{2})$/i);
   if (mx && mn[mx[1].toLowerCase()]) return `${parseInt(mx[2])+2000}-${mn[mx[1].toLowerCase()]}`;

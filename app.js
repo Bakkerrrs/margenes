@@ -487,7 +487,7 @@ function hideTip() { tip.style.display = 'none'; }
 let impWorkbook = null, impBDD1 = null, impBDD2 = null;
 
 const IMP_BDD1_MAP = {
-  'Ejercicio':'fy','Month':'month','Customer':'customer',
+  'Ejercicio':'fy','Ejercicio actividad':'fy','Month':'month','Customer':'customer',
   'Activity Short Name':'act_short','Activity Description':'act_desc',
   'IRM vs2':'irm','Income recognition Method':'irm',
   'End of period WIP':'wip','Total Facturacion mensual':'billing',
@@ -497,8 +497,10 @@ const IMP_BDD1_MAP = {
   'ADV - Responsible ID':'adv_responsible_id','Project':'project',
   'Project name':'project_name','Subproject':'subproject',
   'Subproject name':'subproject_name','Tipo-AT':'tipo_at',
-  'Key BU FINAL':'key_bu_final','Working Days':'working_days',
-  'Total Costo Corregido':'total_costo_corregido','UF Gestionable':'uf_gestionable',
+  'Key BU FINAL':'key_bu_final','Key':'key_bu_final','BU FINAL':'bu',
+  'Working Days':'working_days',
+  'Total Costo Corregido':'total_costo_corregido',
+  'UF Gestionable':'uf_gestionable','Gestionable':'uf_gestionable',
   'OPS':'ops','AUX_AMR':'aux_amr','Quarter':'quarter','Pais':'pais',
   'Subco':'subco','Standarized Project':'standarized_project',
   'BU FINAL 2':'bu','Code Report':'code_report','Desc Report':'desc_report',
@@ -525,6 +527,8 @@ const IMP_BDD2_MAP = {
   'BU-Jefatura':'bu_jefatura','Grupo Cliente':'grupo_cliente',
   'TipoAT':'tipo_at','Pais':'pais','Subco':'subco',
   'Standarized Project':'standarized_project','Code Report':'code_report',
+  'Costo mensual IFS':'costo_mensual','BU FINAL 2':'bu2',
+  'Pais Subco':'pais','Mission Yerie':'mission',
   'Mission':'mission','Yerie':'yerie','BM':'bm',
   'Employee ID 2':'employee_id_2','Employee Name 2':'employee_name_2','RUT 2':'rut_2'
 };
@@ -783,9 +787,9 @@ async function impStart() {
         if (missing.length) impLog('warn', `Columnas obligatorias NO mapeadas: ${missing.join(', ')}`);
       }
       const rows = impNormalize(impBDD1.rows, 'bdd1');
-      const valid = rows.filter(r => r.month && r.act_short);
+      const valid = rows.filter(r => r.fy && r.month && r.act_short);
       const skipped = rows.length - valid.length;
-      if (skipped) impLog('warn', `${skipped} filas sin month/act_short omitidas`);
+      if (skipped) impLog('warn', `${skipped} filas sin fy/month/act_short omitidas`);
 
       for (let i = 0; i < valid.length; i += bs) {
         const batch = valid.slice(i, i + bs);

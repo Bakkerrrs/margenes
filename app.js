@@ -22,6 +22,7 @@ function mlabel(m) { const [y, mm] = m.split('-'); return MNAMES[parseInt(mm) - 
 let ALL = [];   // actividades as arrays matching original format
 let CONS = {};   // consultores keyed by "actShort|month"
 let HOLI = {};   // holidays keyed by "employee|month" → total dias
+let CONS_RAW = []; // raw consultores rows for Consultor tab
 let F = { fy: [], bu: [], ta: [], cu: [], je: [] };  // filter options
 
 let sChart, hChart;
@@ -106,6 +107,9 @@ async function loadData() {
       r.project || '', r.project_name || '', r.subproject || '', r.subproject_name || '',
       r.irm || '', r.key_bu_final || '', r.starter_date || '', r.finisher_date || ''
     ]);
+
+    // Store raw consultores for Consultor tab
+    CONS_RAW = consRows;
 
     // Transform consultores to dict keyed by "actShort|month"
     CONS = {};
@@ -412,8 +416,10 @@ function switchTab(tab) {
   document.querySelector(`.tab[onclick="switchTab('${tab}')"]`).classList.add('active');
   document.getElementById('tabResumen').style.display = tab === 'resumen' ? '' : 'none';
   document.getElementById('tabDetalle').style.display = tab === 'detalle' ? '' : 'none';
+  document.getElementById('tabConsultor').style.display = tab === 'consultor' ? '' : 'none';
   document.getElementById('tabImportar').style.display = tab === 'importar' ? '' : 'none';
   if (tab === 'detalle') refreshDetalle();
+  if (tab === 'consultor') initConsultorTab();
 }
 
 // ─── Detalle Tab ───
@@ -492,6 +498,69 @@ function refreshDetalle() {
 function detSort(col) {
   if (detSortCol === col) { detSortDir = detSortDir === 'asc' ? 'desc' : 'asc'; } else { detSortCol = col; detSortDir = 'asc'; }
   refreshDetalle();
+}
+
+// ─── Consultor Tab ───
+
+let consultorInited = false;
+
+function initConsultorTab() {
+  if (consultorInited) return;
+  consultorInited = true;
+  const names = [...new Set(CONS_RAW.map(r => r.profesional || r.employee_name).filter(Boolean))].sort();
+  const sel = document.getElementById('consultorSelect');
+  names.forEach(n => { sel.innerHTML += `<option value="${n}">${n}</option>`; });
+}
+
+function refreshConsultor() {
+  const name = document.getElementById('consultorSelect').value;
+  const wrap = document.getElementById('consultorTableWrap');
+  if (!name) { wrap.innerHTML = '<p style="color:var(--text3);padding:20px;text-align:center">Selecciona un consultor para ver su historial</p>'; return; }
+
+  // Filter rows for this consultant, get activity description from ALL lookup
+  const actDesc = {}; ALL.forEach(a => { actDesc[a[2]] = a[3]; });
+  const rows = CONS_RAW
+    .filter(r => (r.profesional || r.employee_name) === name)
+    .map(r => ({
+      act: r.act_short || '',
+      desc: actDesc[r.act_short] || r.activity_name || '',
+      month: r.month || '',
+      adv: r.responsible_id || '',
+      jef: r.jefe_directo || '',
+      dias: Number(r.dias) || 0,
+      costo: Number(r.costo_mensual) || 0,
+      report: r.report_code || ''
+    }))
+    .sort((a, b) => b.month.localeCompare(a.month) || a.act.localeCompare(b.act));
+
+  let h = '<table><thead><tr>';
+  h += '<th class="sortable" style="cursor:default">Actividad</th>';
+  h += '<th class="sortable" style="cursor:default">Descripci\u00f3n</th>';
+  h += '<th class="sortable" style="cursor:default">Mes</th>';
+  h += '<th class="sortable" style="cursor:default">ADV</th>';
+  h += '<th class="sortable" style="cursor:default">Jefatura</th>';
+  h += '<th class="sortable" style="cursor:default;text-align:right">D\u00edas</th>';
+  h += '<th class="sortable" style="cursor:default;text-align:right">Costo</th>';
+  h += '</tr></thead><tbody>';
+
+  rows.forEach(r => {
+    h += '<tr>';
+    h += `<td class="td-mono" style="font-size:11px">${r.act}</td>`;
+    h += `<td class="td-name">${r.desc}</td>`;
+    h += `<td class="td-mono" style="font-size:11px">${mlabel(r.month)}</td>`;
+    h += `<td class="td-name" style="font-size:11px">${r.adv}</td>`;
+    h += `<td class="td-name" style="font-size:11px">${r.jef}</td>`;
+    h += `<td class="td-mono" style="text-align:right">${r.dias.toFixed(1)}</td>`;
+    h += `<td class="td-mono" style="text-align:right;color:${r.costo < 0 ? '#c0392b' : '#229954'}">${fmt(r.costo)}</td>`;
+    h += '</tr>';
+  });
+
+  if (rows.length === 0) {
+    h += '<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px">Sin registros</td></tr>';
+  }
+
+  h += '</tbody></table>';
+  wrap.innerHTML = h;
 }
 
 // ─── Hover Tooltip ───

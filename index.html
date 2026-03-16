@@ -61,6 +61,7 @@
   <div class="tabs">
     <div class="tab active" onclick="switchTab('resumen')">Resumen</div>
     <div class="tab" onclick="switchTab('detalle')">Detalle</div>
+    <div class="tab" onclick="switchTab('consultor')">Consultor</div>
     <div class="tab" onclick="switchTab('importar')">Importar Excel</div>
   </div>
   <div id="tabResumen">
@@ -85,6 +86,19 @@
     <div class="card">
       <div class="card-title"><span class="ta">●</span> Margen Histórico por Actividad</div>
       <div class="table-wrap" id="detalleTableWrap" style="max-height:700px"></div>
+    </div>
+  </div>
+
+  <div id="tabConsultor" style="display:none">
+    <div class="card">
+      <div class="card-title"><span class="ta">●</span> Historial por Consultor</div>
+      <div style="margin-bottom:12px">
+        <label style="font-size:12px;color:var(--text3);font-weight:600">Seleccionar Consultor</label>
+        <select id="consultorSelect" onchange="refreshConsultor()" style="margin-left:8px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-family:'Source Sans 3';font-size:13px;min-width:280px">
+          <option value="">— Selecciona un consultor —</option>
+        </select>
+      </div>
+      <div class="table-wrap" id="consultorTableWrap" style="max-height:700px"></div>
     </div>
   </div>
 

@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Seed Supabase - Panel Márgenes</title>
+<style>
+  body { font-family: -apple-system, sans-serif; max-width: 600px; margin: 40px auto; padding: 20px; background: #f5f5f5; }
+  .card { background: #fff; border-radius: 8px; padding: 24px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); }
+  h1 { font-size: 20px; margin-bottom: 16px; }
+  .step { margin: 12px 0; padding: 12px; background: #f8f9fa; border-radius: 6px; font-size: 14px; }
+  .step b { color: #1b5fa8; }
+  button { background: #1b5fa8; color: #fff; border: none; padding: 12px 24px; border-radius: 6px; font-size: 15px; font-weight: 600; cursor: pointer; width: 100%; margin-top: 16px; }
+  button:hover { background: #154a87; }
+  button:disabled { background: #999; cursor: not-allowed; }
+  #log { margin-top: 16px; background: #1a1a1a; color: #0f0; padding: 16px; border-radius: 6px; font-family: monospace; font-size: 12px; max-height: 300px; overflow-y: auto; white-space: pre-wrap; display: none; }
+  .warn { background: #fff3cd; border: 1px solid #ffc107; padding: 10px; border-radius: 6px; font-size: 13px; margin-top: 12px; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>Seed Supabase — Panel de Márgenes</h1>
+  <div class="step"><b>Antes de ejecutar:</b> Ve al SQL Editor de Supabase y ejecuta:</div>
+  <pre style="background:#1a1a1a;color:#0f0;padding:12px;border-radius:6px;font-size:12px;overflow-x:auto">CREATE POLICY "Allow temp insert actividades" ON actividades FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow temp insert consultores" ON consultores FOR INSERT WITH CHECK (true);</pre>
+
+  <button id="btnSeed" onclick="startSeed()">Cargar datos a Supabase</button>
+  <div id="log"></div>
+
+  <div class="warn" id="postMsg" style="display:none">
+    <b>Datos cargados!</b> Ahora ejecuta en el SQL Editor:<br>
+    <code>DROP POLICY "Allow temp insert actividades" ON actividades;</code><br>
+    <code>DROP POLICY "Allow temp insert consultores" ON consultores;</code>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://byhfwubwzcyufkxhrgti.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ5aGZ3dWJ3emN5dWZreGhyZ3RpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM2MDA2NjgsImV4cCI6MjA4OTE3NjY2OH0.AK4jZufmMajZcHblLrM_8lZmob7bxy0L7PwwmihHcic';
+
+const log = document.getElementById('log');
+function addLog(msg) { log.style.display = 'block'; log.textContent += msg + '\n'; log.scrollTop = log.scrollHeight; }
+
+async function insertBatch(table, rows) {
+  const resp = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
+    method: 'POST',
+    headers: {
+      'apikey': SUPABASE_KEY,
+      'Authorization': 'Bearer ' + SUPABASE_KEY,
+      'Content-Type': 'application/json',
+      'Prefer': 'return=minimal'
+    },
+    body: JSON.stringify(rows)
+  });
+  if (!resp.ok) throw new Error(`${resp.status}: ${await resp.text()}`);
+}
+
+async function seedTable(table, allRows, batchSize = 200) {
+  addLog(`Insertando ${allRows.length} filas en ${table}...`);
+  for (let i = 0; i < allRows.length; i += batchSize) {
+    const batch = allRows.slice(i, i + batchSize);
+    await insertBatch(table, batch);
+    const done = Math.min(i + batchSize, allRows.length);
+    addLog(`  ${done}/${allRows.length} (${Math.round(done / allRows.length * 100)}%)`);
+  }
+  addLog(`${table} completado!\n`);
+}
+
+async function startSeed() {
+  const btn = document.getElementById('btnSeed');
+  btn.disabled = true;
+  btn.textContent = 'Cargando...';
+  log.textContent = '';
+
+  try {
+    addLog('Cargando panel_margenes.html...');
+
+    // Fetch the HTML file to extract RAW data
+    const resp = await fetch('panel_margenes.html');
+    if (!resp.ok) {
+      // Try relative path from supabase/ folder
+      const resp2 = await fetch('../panel_margenes.html');
+      if (!resp2.ok) throw new Error('No se pudo cargar panel_margenes.html. Asegurate de abrir este archivo desde la carpeta del proyecto con un servidor local, o mueve seed.html a la raiz del proyecto.');
+      var html = await resp2.text();
+    } else {
+      var html = await resp.text();
+    }
+
+    const match = html.match(/const RAW = ({.*?});/s);
+    if (!match) throw new Error('No se encontro RAW data en el HTML');
+    const RAW = JSON.parse(match[1]);
+    addLog(`Datos extraidos: ${RAW.a.length} actividades, ${Object.keys(RAW.c).length} claves de consultores\n`);
+
+    // Transform actividades
+    const actividades = RAW.a.map(a => ({
+      month: a[0], customer: a[1], act_short: a[2], act_desc: a[3],
+      tipo_at: a[4], bu: a[5], prod: a[6], cost: a[7], margin: a[8],
+      billing: a[9], jefatura: a[10], dias_imputados: a[11],
+      working_days: a[12], fy: a[13]
+    }));
+
+    // Transform consultores
+    const consultores = [];
+    for (const [key, entries] of Object.entries(RAW.c)) {
+      const [act_short, month] = key.split('|');
+      for (const entry of entries) {
+        consultores.push({ act_short, month, profesional: entry[0], jefe_directo: entry[1] });
+      }
+    }
+
+    await seedTable('actividades', actividades);
+    await seedTable('consultores', consultores);
+
+    addLog('SEED COMPLETO!');
+    document.getElementById('postMsg').style.display = 'block';
+  } catch (err) {
+    addLog('ERROR: ' + err.message);
+  }
+  btn.disabled = false;
+  btn.textContent = 'Cargar datos a Supabase';
+}
+</script>
+</body>
+</html>

@@ -576,6 +576,14 @@ function impParseSheet(sheet, colMap, numSet) {
   // Known header names to search for (lowercase)
   const knownHeaders = new Set(Object.keys(colMap).map(k => k.toLowerCase()));
 
+  // Debug: log first 10 rows to see what SheetJS reads
+  for (let i = 0; i < Math.min(aoa.length, 10); i++) {
+    const row = aoa[i];
+    if (!row || !row.length) continue;
+    const cells = row.slice(0, 8).map(c => String(c).trim()).filter(c => c);
+    if (cells.length) console.log(`[impParseSheet] Row ${i}: ${cells.join(' | ')}`);
+  }
+
   // Find the row that contains the most known headers
   let bestRow = 0, bestCount = 0;
   for (let i = 0; i < Math.min(aoa.length, 20); i++) {
@@ -588,6 +596,7 @@ function impParseSheet(sheet, colMap, numSet) {
     });
     if (count > bestCount) { bestCount = count; bestRow = i; }
   }
+  console.log(`[impParseSheet] Best header row: ${bestRow} with ${bestCount} matches`);
 
   // Use bestRow as headers, everything after as data
   const headerRow = aoa[bestRow].map(c => String(c).trim());

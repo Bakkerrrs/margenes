@@ -582,7 +582,7 @@ function impFormatDate(d) {
 function impParseSheet(sheet, colMap, numSet) {
   // Read as raw array of arrays to find the real header row
   // (Excel files often have title/merged rows before the actual headers)
-  const aoa = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: false });
+  const aoa = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: true });
   if (!aoa.length) return { rows: [], mappedCols: 0, totalCols: 0, unmapped: [], debug: 'empty sheet' };
 
   // Known header names to search for (lowercase)

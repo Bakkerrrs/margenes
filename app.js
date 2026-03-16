@@ -569,29 +569,59 @@ function impFormatDate(d) {
 }
 
 function impParseSheet(sheet, colMap, numSet) {
-  const json = XLSX.utils.sheet_to_json(sheet, { defval: '' });
-  if (!json.length) return { rows: [], mappedCols: 0, totalCols: 0, unmapped: [] };
-  const headers = Object.keys(json[0]);
+  // Read as raw array of arrays to find the real header row
+  const aoa = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+  if (!aoa.length) return { rows: [], mappedCols: 0, totalCols: 0, unmapped: [] };
+
+  // Known header names to search for (lowercase)
+  const knownHeaders = new Set(Object.keys(colMap).map(k => k.toLowerCase()));
+
+  // Find the row that contains the most known headers
+  let bestRow = 0, bestCount = 0;
+  for (let i = 0; i < Math.min(aoa.length, 20); i++) {
+    const row = aoa[i];
+    if (!row || !row.length) continue;
+    let count = 0;
+    row.forEach(cell => {
+      const v = String(cell).trim().toLowerCase();
+      if (knownHeaders.has(v)) count++;
+    });
+    if (count > bestCount) { bestCount = count; bestRow = i; }
+  }
+
+  // Use bestRow as headers, everything after as data
+  const headerRow = aoa[bestRow].map(c => String(c).trim());
   const hMap = {}, unmapped = [];
   let mapped = 0;
-  headers.forEach(h => {
-    const t = h.trim();
-    const k = colMap[t] || colMap[Object.keys(colMap).find(k2 => k2.toLowerCase() === t.toLowerCase())];
-    if (k) { hMap[h] = k; mapped++; } else { unmapped.push(t); }
+
+  headerRow.forEach((h, idx) => {
+    if (!h) return;
+    const k = colMap[h] || colMap[Object.keys(colMap).find(k2 => k2.toLowerCase() === h.toLowerCase())];
+    if (k) { hMap[idx] = k; mapped++; } else { unmapped.push(h); }
   });
-  const rows = json.map(row => {
+
+  const rows = [];
+  for (let i = bestRow + 1; i < aoa.length; i++) {
+    const raw = aoa[i];
+    if (!raw || !raw.length) continue;
+    // Skip completely empty rows
+    const hasData = raw.some(c => c !== '' && c != null);
+    if (!hasData) continue;
+
     const obj = {};
-    Object.entries(hMap).forEach(([exH, dbC]) => {
-      let v = row[exH];
+    Object.entries(hMap).forEach(([idxStr, dbC]) => {
+      const idx = parseInt(idxStr);
+      let v = raw[idx];
       if (v instanceof Date) v = impFormatDate(v);
       if (typeof v === 'string' && v.startsWith('#')) v = null;
       if (numSet.has(dbC)) { v = (v === '' || v == null) ? 0 : (parseFloat(v) || 0); }
       else { v = (v == null) ? '' : String(v).trim(); }
       obj[dbC] = v;
     });
-    return obj;
-  });
-  return { rows, mappedCols: mapped, totalCols: headers.length, unmapped };
+    rows.push(obj);
+  }
+
+  return { rows, mappedCols: mapped, totalCols: headerRow.filter(h => h).length, unmapped: unmapped.filter(u => u && !u.startsWith('__')) };
 }
 
 function impPreview(title, data) {

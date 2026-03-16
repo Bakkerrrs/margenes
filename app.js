@@ -645,7 +645,11 @@ function impParseSheet(sheet, colMap, numSet) {
       let v = raw[idx];
       if (v instanceof Date) v = impFormatDate(v);
       if (typeof v === 'string' && v.startsWith('#')) v = null;
-      if (numSet.has(dbC)) { v = (v === '' || v == null) ? 0 : (parseFloat(v) || 0); }
+      if (numSet.has(dbC)) {
+        if (v === '' || v == null) { v = 0; }
+        else if (typeof v === 'number') { v = v; }
+        else { v = parseFloat(String(v).replace(/\./g, '').replace(',', '.')) || 0; }
+      }
       else { v = (v == null) ? '' : String(v).trim(); }
       obj[dbC] = v;
     });

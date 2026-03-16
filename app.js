@@ -2,7 +2,7 @@
 // Fetches data from Supabase instead of hardcoded RAW
 
 const SUPABASE_URL = 'https://byhfwubwzcyufkxhrgti.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_vHe5fhXdjkQVKFUDRW8GqA_Z4A1x0U-';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ5aGZ3dWJ3emN5dWZreGhyZ3RpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM2MDA2NjgsImV4cCI6MjA4OTE3NjY2OH0.AK4jZufmMajZcHblLrM_8lZmob7bxy0L7PwwmihHcic';
 
 const RANGES = [
   { label: '1. < 25%', lo: -Infinity, hi: 0.25, color: '#1a1a1a', cls: 'mb1' },

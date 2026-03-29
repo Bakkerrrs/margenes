@@ -6,9 +6,33 @@
 <title>Panel de Márgenes SIICL</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+
+<!-- Login Screen -->
+<div id="loginScreen" class="login-screen" style="display:none">
+  <div class="login-card">
+    <div class="login-logo">
+      <svg width="60" height="42" viewBox="0 0 60 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M8 32C8 32 14 8 22 8C26 8 24 20 28 20C32 20 30 8 34 8C42 8 36 32 36 32" stroke="#1b5fa8" stroke-width="4" stroke-linecap="round" fill="none"/>
+        <path d="M36 12C40 8 48 6 52 10C56 14 50 20 46 18" stroke="#1b5fa8" stroke-width="4" stroke-linecap="round" fill="none"/>
+      </svg>
+    </div>
+    <h2 class="login-title">Panel de Márgenes</h2>
+    <p class="login-subtitle">Inicia sesión con tu cuenta corporativa Microsoft</p>
+    <div id="loginError" class="login-error" style="display:none"></div>
+    <button class="login-btn-ms" onclick="login()">
+      <svg width="20" height="20" viewBox="0 0 21 21"><rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/><rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/></svg>
+      Iniciar sesión con Microsoft
+    </button>
+    <p class="login-hint">Solo cuentas @siigroup.cl</p>
+  </div>
+</div>
+
+<!-- App Container (hidden until authenticated) -->
+<div id="appContainer" style="display:none">
 
 <div id="loadingOverlay" class="loading-overlay">
   <div class="loading-spinner"></div>
@@ -27,7 +51,10 @@
   <h1>Panel de Márgenes</h1>
   <div class="sep"></div>
   <span class="subtitle">Gestión y seguimiento de márgenes por actividad</span>
-  <div class="right-info"><span class="fy-badge" id="fyBadge"></span></div>
+  <div class="right-info">
+    <span class="fy-badge" id="fyBadge"></span>
+    <div id="userInfo" class="user-info"></div>
+  </div>
 </div>
 
 <div class="filters-bar">
@@ -161,6 +188,9 @@
 
 <div id="hoverTip" style="display:none;position:fixed;z-index:999;background:#fff;border:1px solid var(--border);border-radius:8px;padding:14px 16px;box-shadow:0 4px 16px rgba(0,0,0,0.12);pointer-events:none;max-width:400px;font-size:12px;color:var(--text)"></div>
 
+</div><!-- /appContainer -->
+
 <script src="app.js"></script>
+<script src="auth.js"></script>
 </body>
 </html>

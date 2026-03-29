@@ -1057,4 +1057,8 @@ async function impClearTables() {
 }
 
 // ─── Start ───
-document.addEventListener('DOMContentLoaded', loadData);
+// La carga de datos es controlada por auth.js después de autenticación
+// Si auth.js no está presente, cargar directamente (fallback)
+if (typeof initAuth === 'undefined') {
+  document.addEventListener('DOMContentLoaded', loadData);
+}

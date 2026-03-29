@@ -1,12 +1,10 @@
 // ─── Clerk SSO Authentication + Supabase User Management ───
-
-// ⚠️ REEMPLAZAR con tu Publishable Key de Clerk (clerk.com > Dashboard > API Keys)
-const CLERK_PUBLISHABLE_KEY = 'TU_CLERK_PUBLISHABLE_KEY';
+// La Publishable Key se configura en el atributo data-clerk-publishable-key
+// del script tag en index.html
 
 // Dominios permitidos para login
 const ALLOWED_DOMAINS = ['siigroup.cl'];
 
-let clerkInstance = null;
 let currentUser = null;   // Clerk user object
 let currentDbUser = null;  // Supabase app_users row
 
@@ -131,8 +129,8 @@ async function showApp(clerkUser) {
 }
 
 function logout() {
-  if (clerkInstance) {
-    clerkInstance.signOut().then(() => {
+  if (typeof Clerk !== 'undefined') {
+    Clerk.signOut().then(() => {
       window.location.reload();
     });
   }
@@ -195,7 +193,6 @@ async function adminAction(userId, action, selectEl) {
 }
 
 // ─── Hook into switchTab ───
-const _origSwitchTab = typeof switchTab === 'function' ? switchTab : null;
 
 function patchSwitchTab() {
   if (typeof switchTab !== 'function') return;
@@ -223,11 +220,16 @@ function patchSwitchTab() {
 }
 
 // ─── Initialization ───
+// Uses the global Clerk object loaded via CDN script tags in index.html
+// The publishable key is set via data-clerk-publishable-key attribute
 
-document.addEventListener('DOMContentLoaded', async function () {
+window.addEventListener('load', async function () {
   // Dev mode: if key not configured, skip auth
-  if (CLERK_PUBLISHABLE_KEY === 'TU_CLERK_PUBLISHABLE_KEY') {
-    console.warn('⚠️ Configura tu Clerk Publishable Key en auth.js');
+  const clerkScript = document.getElementById('clerkScript');
+  const publishableKey = clerkScript ? clerkScript.getAttribute('data-clerk-publishable-key') : '';
+
+  if (!publishableKey || publishableKey === 'TU_CLERK_PUBLISHABLE_KEY') {
+    console.warn('⚠️ Configura tu Clerk Publishable Key en el script tag de index.html');
     document.getElementById('loginScreen').style.display = 'none';
     document.getElementById('appContainer').style.display = '';
     patchSwitchTab();
@@ -241,25 +243,24 @@ document.addEventListener('DOMContentLoaded', async function () {
   showLoginScreen();
 
   try {
-    // Initialize Clerk
-    clerkInstance = new window.Clerk(CLERK_PUBLISHABLE_KEY);
-    await clerkInstance.load();
+    // Load Clerk (global object from CDN)
+    await Clerk.load();
 
     patchSwitchTab();
 
-    if (clerkInstance.user) {
+    if (Clerk.user) {
       // Already signed in
-      const email = clerkInstance.user.primaryEmailAddress?.emailAddress;
+      const email = Clerk.user.primaryEmailAddress?.emailAddress;
       if (!validateDomain(email)) {
-        await clerkInstance.signOut();
+        await Clerk.signOut();
         showLoginError('Solo se permiten cuentas de ' + ALLOWED_DOMAINS.join(', '));
         return;
       }
-      currentUser = clerkInstance.user;
-      await showApp(clerkInstance.user);
+      currentUser = Clerk.user;
+      await showApp(Clerk.user);
     } else {
       // Mount Clerk sign-in component
-      clerkInstance.mountSignIn(document.getElementById('clerkSignIn'), {
+      Clerk.mountSignIn(document.getElementById('clerkSignIn'), {
         appearance: {
           elements: {
             rootBox: { width: '100%' },
@@ -269,17 +270,16 @@ document.addEventListener('DOMContentLoaded', async function () {
       });
 
       // Listen for sign-in completion
-      clerkInstance.addListener(({ user }) => {
+      Clerk.addListener(({ user }) => {
         if (user) {
           const email = user.primaryEmailAddress?.emailAddress;
           if (!validateDomain(email)) {
-            clerkInstance.signOut();
+            Clerk.signOut();
             showLoginError('Solo se permiten cuentas de ' + ALLOWED_DOMAINS.join(', '));
             return;
           }
           currentUser = user;
-          // Unmount sign-in UI
-          clerkInstance.unmountSignIn(document.getElementById('clerkSignIn'));
+          Clerk.unmountSignIn(document.getElementById('clerkSignIn'));
           showApp(user);
         }
       });

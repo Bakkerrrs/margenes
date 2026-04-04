@@ -992,6 +992,18 @@ document.addEventListener('DOMContentLoaded', function() {
           preview += impPreview('BDD2 → consultores', impBDD2);
         } else { impLog('err', 'Hoja BDD2 no encontrada'); impBDD2 = null; }
 
+        // Extract fiscal years from BDD1 for selector
+        if (impBDD1 && impBDD1.rows.length > 0) {
+          const fys = [...new Set(impBDD1.rows.map(r => r.fy).filter(Boolean))].sort();
+          if (fys.length > 0) {
+            const container = document.getElementById('impFYChecks');
+            container.innerHTML = fys.map(fy =>
+              `<label class="import-check"><input type="checkbox" class="impFYCheck" value="${fy}" checked> ${fy}</label>`
+            ).join('');
+            document.getElementById('impFYSelector').style.display = '';
+          }
+        }
+
         document.getElementById('impSheetPreview').innerHTML = preview;
         document.getElementById('impBtnGo').disabled = !(impBDD1 || impBDD2);
         document.getElementById('impBtnClear').style.display = 'inline-block';
@@ -1032,9 +1044,14 @@ function impNormalize(rows, type) {
 }
 
 async function impStart() {
-  const url = document.getElementById('impUrl').value.replace(/\/$/, '');
-  const key = document.getElementById('impKey').value.trim();
-  if (!url || !key) { alert('Completa URL y Service Role Key'); return; }
+  // Get credentials from auth (loaded from DB) or fallback to manual inputs
+  const url = (typeof impCredentials !== 'undefined' && impCredentials) ? impCredentials.url : '';
+  const key = (typeof impCredentials !== 'undefined' && impCredentials) ? impCredentials.key : '';
+  if (!url || !key) { alert('No se han cargado las credenciales. Verifica la contraseña de importación.'); return; }
+
+  // Get selected fiscal years
+  const fyChecks = document.querySelectorAll('.impFYCheck:checked');
+  const selectedFYs = new Set(Array.from(fyChecks).map(cb => cb.value));
 
   const doClear = document.getElementById('impOptClear').checked;
   const do1 = document.getElementById('impOptBDD1').checked && impBDD1;
@@ -1056,16 +1073,19 @@ async function impStart() {
     }
 
     if (do1) {
-      impLog('info', `BDD1 → actividades (${impBDD1.rows.length} filas)...`);
-      // Log mapped columns for debugging
-      if (impBDD1.rows.length > 0) {
-        const sampleKeys = Object.keys(impBDD1.rows[0]);
+      // Filter by selected fiscal years
+      const fyFiltered = selectedFYs.size > 0
+        ? impBDD1.rows.filter(r => selectedFYs.has(r.fy))
+        : impBDD1.rows;
+      impLog('info', `BDD1 → actividades (${fyFiltered.length} filas de ${impBDD1.rows.length} total, FY: ${[...selectedFYs].join(', ') || 'todos'})...`);
+      if (fyFiltered.length > 0) {
+        const sampleKeys = Object.keys(fyFiltered[0]);
         impLog('info', `Columnas mapeadas BDD1: ${sampleKeys.join(', ')}`);
         const reqFields = ['fy','month','customer','act_short','act_desc'];
         const missing = reqFields.filter(f => !sampleKeys.includes(f));
         if (missing.length) impLog('warn', `Columnas obligatorias NO mapeadas: ${missing.join(', ')}`);
       }
-      const rows = impNormalize(impBDD1.rows, 'bdd1');
+      const rows = impNormalize(fyFiltered, 'bdd1');
       const valid = rows.filter(r => r.fy && r.month && r.act_short);
       const skipped = rows.length - valid.length;
       if (skipped) impLog('warn', `${skipped} filas sin fy/month/act_short omitidas`);
@@ -1080,8 +1100,16 @@ async function impStart() {
     }
 
     if (do2) {
-      impLog('info', `BDD2 → consultores (${impBDD2.rows.length} filas)...`);
-      const rows = impNormalize(impBDD2.rows, 'bdd2');
+      // Filter BDD2 by months from selected FYs (if BDD1 was processed)
+      let bdd2Rows = impBDD2.rows;
+      if (do1 && selectedFYs.size > 0) {
+        const fyMonths = new Set(impBDD1.rows.filter(r => selectedFYs.has(r.fy)).map(r => r.month).filter(Boolean));
+        bdd2Rows = impBDD2.rows.filter(r => fyMonths.has(r.month));
+        impLog('info', `BDD2 → consultores (${bdd2Rows.length} filas de ${impBDD2.rows.length} total, filtrado por meses de FY seleccionados)...`);
+      } else {
+        impLog('info', `BDD2 → consultores (${bdd2Rows.length} filas)...`);
+      }
+      const rows = impNormalize(bdd2Rows, 'bdd2');
       const valid = rows.filter(r => r.month && r.act_short && r.profesional);
       const skipped = rows.length - valid.length;
       if (skipped) impLog('warn', `${skipped} filas sin campos obligatorios omitidas`);
@@ -1119,9 +1147,9 @@ async function impStart() {
 }
 
 async function impClearTables() {
-  const url = document.getElementById('impUrl').value.replace(/\/$/, '');
-  const key = document.getElementById('impKey').value.trim();
-  if (!url || !key) { alert('Completa URL y Service Role Key'); return; }
+  const url = (typeof impCredentials !== 'undefined' && impCredentials) ? impCredentials.url : '';
+  const key = (typeof impCredentials !== 'undefined' && impCredentials) ? impCredentials.key : '';
+  if (!url || !key) { alert('No se han cargado las credenciales. Verifica la contraseña de importación.'); return; }
   if (!confirm('¿Eliminar TODOS los datos de ambas tablas?')) return;
   document.getElementById('impProgressCard').style.display = 'block';
   try {

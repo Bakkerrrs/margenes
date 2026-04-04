@@ -88,7 +88,6 @@
     <div class="tab" onclick="switchTab('detalle')">Detalle</div>
     <div class="tab" onclick="switchTab('consultor')">Consultor</div>
     <div class="tab" onclick="switchTab('importar')">Importar Excel</div>
-    <div class="tab" id="tabAdminBtn" onclick="switchTab('admin')" style="display:none">Usuarios</div>
   </div>
   <div id="tabResumen">
     <div class="kpi-row" id="kpiRow"></div>
@@ -131,24 +130,27 @@
   </div>
 
   <div id="tabImportar" style="display:none">
-    <!-- Step 1: Supabase Config -->
+    <!-- Step 1: Import Password -->
     <div class="card">
-      <div class="card-title"><span class="ta">1</span> Configuración Supabase</div>
-      <div class="import-grid2">
-        <div class="import-field">
-          <label class="import-label">Supabase URL</label>
-          <input type="text" class="import-input" id="impUrl" value="https://byhfwubwzcyufkxhrgti.supabase.co">
-        </div>
-        <div class="import-field">
-          <label class="import-label">Service Role Key (para INSERT)</label>
-          <input type="password" class="import-input" id="impKey" placeholder="eyJhbGciOiJIUzI1NiIs...">
-        </div>
+      <div class="card-title"><span class="ta">1</span> Autorización de importación</div>
+      <div id="impAuthOk" style="display:none">
+        <span style="color:#02931C;font-weight:600">Autorizado</span>
+        <span style="font-size:12px;color:var(--text3);margin-left:8px">Credenciales cargadas desde base de datos</span>
       </div>
-      <p style="font-size:11px;color:var(--text3);margin-top:8px">Usa la <strong>service_role key</strong> (no la anon key). Supabase → Settings → API.</p>
+      <div id="impAuthForm">
+        <div class="import-field" style="max-width:360px">
+          <label class="import-label">Contraseña de actualización</label>
+          <div style="display:flex;gap:8px">
+            <input type="password" class="import-input" id="impPassword" placeholder="Contraseña de importación">
+            <button class="import-btn import-btn-go" onclick="impAuth()" style="white-space:nowrap">Verificar</button>
+          </div>
+        </div>
+        <div id="impAuthError" class="login-error" style="display:none;margin-top:8px;max-width:360px"></div>
+      </div>
     </div>
 
     <!-- Step 2: Upload File -->
-    <div class="card">
+    <div class="card" id="impStep2" style="opacity:0.4;pointer-events:none">
       <div class="card-title"><span class="ta">2</span> Cargar archivo Excel</div>
       <label class="import-file-btn" for="impFileInput">Seleccionar archivo .xlsm / .xlsx</label>
       <input type="file" id="impFileInput" accept=".xlsm,.xlsx,.xls" style="display:none">
@@ -157,8 +159,12 @@
     </div>
 
     <!-- Step 3: Options -->
-    <div class="card">
+    <div class="card" id="impStep3" style="opacity:0.4;pointer-events:none">
       <div class="card-title"><span class="ta">3</span> Opciones de importación</div>
+      <div id="impFYSelector" style="display:none;margin-bottom:12px">
+        <label class="import-label">Años fiscales a importar</label>
+        <div id="impFYChecks" class="import-checks" style="margin-top:4px"></div>
+      </div>
       <div class="import-checks">
         <label class="import-check"><input type="checkbox" id="impOptClear" checked> Limpiar tablas antes de importar (TRUNCATE)</label>
         <label class="import-check"><input type="checkbox" id="impOptBDD1" checked> Importar BDD1 → actividades</label>
@@ -184,29 +190,6 @@
     </div>
   </div>
 
-  <!-- Admin Tab: User Management -->
-  <div id="tabAdmin" style="display:none">
-    <div class="card">
-      <div class="card-title"><span class="ta">●</span> Gestión de Usuarios</div>
-      <p style="font-size:12px;color:var(--text3);margin-bottom:14px">Administra los roles y estados de los usuarios registrados.</p>
-      <div class="table-wrap" id="adminTableWrap" style="max-height:600px">
-        <table id="adminTable">
-          <thead>
-            <tr>
-              <th>Email</th>
-              <th>Nombre</th>
-              <th>Rol</th>
-              <th>Estado</th>
-              <th>Primer acceso</th>
-              <th>Último acceso</th>
-              <th>Acciones</th>
-            </tr>
-          </thead>
-          <tbody id="adminTableBody"></tbody>
-        </table>
-      </div>
-    </div>
-  </div>
 </div>
 
 <div id="hoverTip" style="display:none;position:fixed;z-index:999;background:#fff;border:1px solid var(--border);border-radius:8px;padding:14px 16px;box-shadow:0 4px 16px rgba(0,0,0,0.12);pointer-events:none;max-width:620px;font-size:12px;color:var(--text);white-space:nowrap"></div>

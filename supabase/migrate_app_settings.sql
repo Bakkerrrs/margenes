@@ -32,3 +32,16 @@ CREATE POLICY "Allow public insert app_settings" ON app_settings
 
 -- Example: password "margenes2025" → hash below
 -- INSERT INTO app_settings (key, value) VALUES ('site_password', 'PEGA_TU_HASH_SHA256_AQUI');
+
+-- ============================================================
+-- Import credentials (stored in plain text, protected by import password)
+-- ============================================================
+
+-- Import password (SHA-256 hash, same method as site_password)
+-- INSERT INTO app_settings (key, value) VALUES ('import_password', 'PEGA_TU_HASH_SHA256_AQUI');
+
+-- Supabase URL for import operations
+-- INSERT INTO app_settings (key, value) VALUES ('import_supabase_url', 'https://byhfwubwzcyufkxhrgti.supabase.co');
+
+-- Service Role Key for import operations (has INSERT/DELETE permissions)
+-- INSERT INTO app_settings (key, value) VALUES ('import_service_key', 'TU_SERVICE_ROLE_KEY_AQUI');

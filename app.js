@@ -640,18 +640,26 @@ function refreshConsultor(name) {
 
   // Filter rows for this consultant, get activity description from ALL lookup
   const actDesc = {}; ALL.forEach(a => { actDesc[a[2]] = a[3]; });
+  // Build lookup for activity-month → prod, prodUF, margin from actividades
+  const actData = {}; ALL.forEach(a => { actData[`${a[2]}|${a[0]}`] = { pr: a[6], puf: a[24], mg: a[8] }; });
   const rows = CONS_RAW
     .filter(r => (r.profesional || r.employee_name) === name)
-    .map(r => ({
-      act: r.act_short || '',
-      desc: actDesc[r.act_short] || r.activity_name || '',
-      month: r.month || '',
-      adv: r.responsible_id || '',
-      jef: r.jefe_directo || '',
-      dias: Number(r.dias) || 0,
-      costo: Number(r.costo_mensual) || 0,
-      report: r.report_code || ''
-    }))
+    .map(r => {
+      const ad = actData[`${r.act_short}|${r.month}`] || { pr: 0, puf: 0, mg: 0 };
+      return {
+        act: r.act_short || '',
+        desc: actDesc[r.act_short] || r.activity_name || '',
+        month: r.month || '',
+        adv: r.responsible_id || '',
+        jef: r.jefe_directo || '',
+        dias: Number(r.dias) || 0,
+        costo: Number(r.costo_mensual) || 0,
+        report: r.report_code || '',
+        prod: ad.pr,
+        prodUF: ad.puf,
+        margin: ad.mg
+      };
+    })
     .sort((a, b) => b.month.localeCompare(a.month) || a.act.localeCompare(b.act));
 
   let h = '<table><thead><tr>';
@@ -662,11 +670,17 @@ function refreshConsultor(name) {
   h += '<th class="sortable" style="cursor:default">Jefatura</th>';
   h += '<th class="sortable" style="cursor:default;text-align:right">D\u00edas</th>';
   h += '<th class="sortable" style="cursor:default;text-align:right">Costo</th>';
+  h += '<th class="sortable" style="cursor:default;text-align:right">Producci\u00f3n</th>';
+  h += '<th class="sortable" style="cursor:default;text-align:right">Prod UF</th>';
+  h += '<th class="sortable" style="cursor:default;text-align:right">Margen%</th>';
   h += '</tr></thead><tbody>';
 
   const bands = buildMonthBands(rows);
   rows.forEach((r, i) => {
     const band = bands[i] ? ' class="month-band"' : '';
+    const hasProd = r.prod !== 0;
+    const mgPct = hasProd ? (r.margin * 100).toFixed(1) : 'N/A';
+    const mgColor = !hasProd ? '#999' : r.margin >= 0.34 ? '#02931C' : r.margin >= 0.30 ? '#5a6600' : r.margin >= 0.28 ? '#b45309' : r.margin >= 0.25 ? '#D64550' : '#1a1a1a';
     h += `<tr${band}>`;
     h += `<td class="td-mono" style="font-size:11px">${r.act}</td>`;
     h += `<td class="td-name">${r.desc}</td>`;
@@ -675,11 +689,14 @@ function refreshConsultor(name) {
     h += `<td class="td-name" style="font-size:11px">${r.jef}</td>`;
     h += `<td class="td-mono" style="text-align:right">${r.dias.toFixed(1)}</td>`;
     h += `<td class="td-mono" style="text-align:right;color:${r.costo < 0 ? '#c0392b' : '#229954'}">${fmt(r.costo)}</td>`;
+    h += `<td class="td-mono" style="text-align:right">${fmt(r.prod)}</td>`;
+    h += `<td class="td-mono" style="text-align:right">${fmtUF(r.prodUF)}</td>`;
+    h += `<td style="text-align:right;color:${mgColor};font-weight:600">${mgPct}${hasProd ? '%' : ''}</td>`;
     h += '</tr>';
   });
 
   if (rows.length === 0) {
-    h += '<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px">Sin registros</td></tr>';
+    h += '<tr><td colspan="10" style="text-align:center;color:var(--text3);padding:20px">Sin registros</td></tr>';
   }
 
   h += '</tbody></table>';

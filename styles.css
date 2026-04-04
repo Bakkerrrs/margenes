@@ -31,7 +31,7 @@ body{font-family:'Source Sans 3',-apple-system,BlinkMacSystemFont,sans-serif;bac
 .search-wrap svg{position:absolute;left:8px;top:50%;transform:translateY(-50%);pointer-events:none}
 
 .main{padding:18px 24px;max-width:1480px;margin:0 auto}
-.kpi-row{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:18px}
+.kpi-row{display:grid;grid-template-columns:repeat(7,1fr);gap:12px;margin-bottom:18px}
 .kpi{background:var(--surface);border:1px solid var(--border2);border-radius:8px;padding:14px 16px;transition:box-shadow 0.15s}
 .kpi:hover{box-shadow:0 2px 8px rgba(0,0,0,0.06)}
 .kpi-label{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:0.6px;font-weight:600;margin-bottom:2px}

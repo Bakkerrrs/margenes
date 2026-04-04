@@ -97,7 +97,7 @@ async function loadData() {
     //  6:prod, 7:total_costo_corregido, 8:margin (calculated), 9:billing, 10:jefatura,
     //  11:diasImputados, 12:workingDays, 13:fy, 14:pais, 15:quarter,
     //  16:project, 17:projectName, 18:subproject, 19:subprojectName,
-    //  20:irm, 21:keyBuFinal, 22:starterDate, 23:finisherDate]
+    //  20:irm, 21:keyBuFinal, 22:starterDate, 23:finisherDate, 24:totalProdUF]
     ALL = actRows.map(r => [
       r.month, r.customer, r.act_short, r.act_desc,
       r.tipo_at, r.bu,
@@ -105,7 +105,8 @@ async function loadData() {
       r.jefatura, Number(r.dias_imputados), Number(r.working_days), r.fy,
       r.pais || '', r.quarter || '',
       r.project || '', r.project_name || '', r.subproject || '', r.subproject_name || '',
-      r.irm || '', r.key_bu_final || '', r.starter_date || '', r.finisher_date || ''
+      r.irm || '', r.key_bu_final || '', r.starter_date || '', r.finisher_date || '',
+      Number(r.total_prod_uf) || 0
     ]);
 
     // Store raw consultores for Consultor tab
@@ -235,6 +236,7 @@ function flt(data) {
 
 function gri(mg) { for (let i = RANGES.length - 1; i >= 0; i--) { if (mg >= RANGES[i].lo) return i; } return 0; }
 function fmt(n) { if (n == null || isNaN(n)) return '-'; const a = Math.abs(n), s = n < 0 ? '-' : ''; if (a >= 1e6) return s + '$' + (a / 1e6).toFixed(1) + 'M'; if (a >= 1e3) return s + '$' + Math.round(a / 1e3) + 'K'; return s + '$' + Math.round(a); }
+function fmtUF(n) { if (n == null || isNaN(n) || n === 0) return '-'; const a = Math.abs(n), s = n < 0 ? '-' : ''; if (a >= 1e6) return s + (a / 1e6).toFixed(1) + 'M UF'; if (a >= 1e3) return s + (a / 1e3).toFixed(1) + 'K UF'; return s + a.toFixed(1) + ' UF'; }
 
 // ─── Main refresh ───
 
@@ -247,12 +249,14 @@ function refresh() {
   const tA = md.length, tP = md.reduce((s, a) => s + a[6], 0), tC = md.reduce((s, a) => s + a[7], 0);
   const wM = tP !== 0 ? ((tP + tC) / tP * 100) : 0;
   const tB = md.reduce((s, a) => s + a[9], 0);
+  const tPUF = md.reduce((s, a) => s + a[24], 0);
   const tDias = md.reduce((s, a) => s + a[11], 0);
   const adr = tDias > 0 ? (tP / tDias) : 0, adc = tDias > 0 ? (tC / tDias) : 0;
 
   document.getElementById('kpiRow').innerHTML = `
     <div class="kpi"><div class="kpi-label">Actividades</div><div class="kpi-value">${tA}</div></div>
     <div class="kpi"><div class="kpi-label">Producci\u00f3n Total</div><div class="kpi-value">${fmt(tP)}</div></div>
+    <div class="kpi"><div class="kpi-label">Prod UF</div><div class="kpi-value">${fmtUF(tPUF)}</div></div>
     <div class="kpi"><div class="kpi-label">Margen Ponderado</div><div class="kpi-value" style="color:${wM >= 30 ? '#02931C' : wM >= 25 ? '#E66C37' : '#D64550'}">${wM.toFixed(1)}%</div></div>
     <div class="kpi"><div class="kpi-label">Facturaci\u00f3n Total</div><div class="kpi-value">${fmt(tB)}</div></div>
     <div class="kpi"><div class="kpi-label">ADR <span style="font-weight:400;font-size:9px;color:var(--text3)">(Prod/D\u00eda)</span></div><div class="kpi-value" style="color:var(--accent)">${fmt(adr)}</div></div>
@@ -358,7 +362,7 @@ function refresh() {
 
 // ─── Resumen Table ───
 
-const SORT_COLS = [null, { k: 2, t: 's' }, { k: 3, t: 's' }, { k: 1, t: 's' }, { k: 5, t: 's' }, { k: 10, t: 's' }, { k: 6, t: 'n' }, { k: 7, t: 'n' }, { k: 8, t: 'n' }, { k: 9, t: 'n' }];
+const SORT_COLS = [null, { k: 2, t: 's' }, { k: 3, t: 's' }, { k: 1, t: 's' }, { k: 5, t: 's' }, { k: 10, t: 's' }, { k: 6, t: 'n' }, { k: 24, t: 'n' }, { k: 7, t: 'n' }, { k: 8, t: 'n' }, { k: 9, t: 'n' }];
 
 function doSort(ci) {
   if (sortCol === ci) { sortDir = sortDir === 'asc' ? 'desc' : 'asc'; } else { sortCol = ci; sortDir = 'asc'; }
@@ -370,8 +374,8 @@ function doSort(ci) {
 function renderTable(md, month) {
   const sc = SORT_COLS[sortCol];
   const sorted = [...md].sort((a, b) => { let va = a[sc.k], vb = b[sc.k]; if (sc.t === 's') { va = (va || '').toString().toLowerCase(); vb = (vb || '').toString().toLowerCase(); return sortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va); } return sortDir === 'asc' ? (va - vb) : (vb - va); });
-  const headers = ['', 'Actividad', 'Descripci\u00f3n', 'Cliente', 'BU', 'Jefatura', 'Producci\u00f3n', 'Costo', 'Margen%', 'Facturaci\u00f3n'];
-  const aligns = [null, null, null, null, null, null, 'right', 'right', 'right', 'right'];
+  const headers = ['', 'Actividad', 'Descripci\u00f3n', 'Cliente', 'BU', 'Jefatura', 'Producci\u00f3n', 'Prod UF', 'Costo', 'Margen%', 'Facturaci\u00f3n'];
+  const aligns = [null, null, null, null, null, null, 'right', 'right', 'right', 'right', 'right'];
   let h = '<table><thead><tr>';
   headers.forEach((hdr, i) => {
     const s = i > 0; const cls = s ? ` class="sortable${sortCol === i ? (' ' + sortDir) : ''}"` : ' style="width:24px"'; const al = aligns[i] ? ` style="text-align:${aligns[i]}"` : ''; const oc = s ? ` onclick="doSort(${i})"` : '';
@@ -387,11 +391,12 @@ function renderTable(md, month) {
       + `<td class="td-mono">${a[2]}</td><td class="td-name">${a[3]}</td><td class="td-name">${a[1]}</td>`
       + `<td>${a[5]}</td><td class="td-name">${a[10]}</td>`
       + `<td class="td-mono" style="text-align:right">${fmt(a[6])}</td>`
+      + `<td class="td-mono" style="text-align:right">${fmtUF(a[24])}</td>`
       + `<td class="td-mono" style="text-align:right;color:${a[7] < 0 ? '#c0392b' : '#229954'}">${fmt(a[7])}</td>`
       + `<td style="text-align:right"><span class="margin-badge ${cls}">${mgPct}${hasProd ? '%' : ''}</span></td>`
       + `<td class="td-mono" style="text-align:right">${fmt(a[9])}</td></tr>`;
     if (hasC) {
-      h += `<tr id="cr${idx}" class="consultant-row" style="display:none"><td></td><td colspan="9"><div style="padding:6px 0">`
+      h += `<tr id="cr${idx}" class="consultant-row" style="display:none"><td></td><td colspan="10"><div style="padding:6px 0">`
         + `<table style="width:100%;font-size:12px"><tr><th style="padding:5px 10px;text-align:left">Profesional</th><th style="padding:5px 10px;text-align:left">Jefe Directo</th><th style="padding:5px 10px;text-align:left">ADV</th></tr>`;
       CONS[key].forEach(c => { h += `<tr><td style="padding:5px 10px;border-bottom:1px solid var(--border2)">${c[0]}</td><td style="padding:5px 10px;border-bottom:1px solid var(--border2)">${c[1]}</td><td style="padding:5px 10px;border-bottom:1px solid var(--border2)">${c[2]}</td></tr>`; });
       h += '</table></div></td></tr>';
@@ -432,13 +437,13 @@ function refreshDetalle() {
   fd.forEach(a => {
     const key = a[2];
     if (!acts[key]) { acts[key] = { as: a[2], ad: a[3], cu: a[1], bu: a[5], je: a[10], months: {} }; }
-    acts[key].months[a[0]] = { mg: a[8], pr: a[6], co: a[7], di: a[11], wd: a[12] };
+    acts[key].months[a[0]] = { mg: a[8], pr: a[6], co: a[7], di: a[11], wd: a[12], puf: a[24] };
   });
 
   let rows = Object.values(acts);
   rows.forEach(row => {
-    let tP = 0, tC = 0; Object.values(row.months).forEach(d => { tP += d.pr; tC += d.co; });
-    row.ytdProd = tP; row.ytdCost = tC; row.ytdMg = tP !== 0 ? (tP + tC) / tP : -999;
+    let tP = 0, tC = 0, tPUF = 0; Object.values(row.months).forEach(d => { tP += d.pr; tC += d.co; tPUF += d.puf; });
+    row.ytdProd = tP; row.ytdCost = tC; row.ytdProdUF = tPUF; row.ytdMg = tP !== 0 ? (tP + tC) / tP : -999;
   });
 
   rows.sort((a, b) => {
@@ -481,9 +486,9 @@ function refreshDetalle() {
       const d = row.months[m];
       if (d && d.pr !== 0) {
         const pct = (d.mg * 100).toFixed(1); const adrV = d.di > 0 ? (d.pr / d.di) : 0; const adcV = d.di > 0 ? (d.co / d.di) : 0;
-        h += `<td style="text-align:center"><span class="mg-cell" style="${mgBg(d.mg)}" data-as="${row.as}" data-mo="${m}" data-pr="${d.pr}" data-co="${d.co}" data-mg="${pct}" data-di="${d.di}" data-wd="${d.wd}" data-adr="${Math.round(adrV)}" data-adc="${Math.round(adcV)}" onmouseenter="showTip(event,this)" onmouseleave="hideTip()">${pct}%</span></td>`;
+        h += `<td style="text-align:center"><span class="mg-cell" style="${mgBg(d.mg)}" data-as="${row.as}" data-mo="${m}" data-pr="${d.pr}" data-puf="${d.puf}" data-co="${d.co}" data-mg="${pct}" data-di="${d.di}" data-wd="${d.wd}" data-adr="${Math.round(adrV)}" data-adc="${Math.round(adcV)}" onmouseenter="showTip(event,this)" onmouseleave="hideTip()">${pct}%</span></td>`;
       } else if (d && d.pr === 0) {
-        h += `<td style="text-align:center"><span class="mg-cell" style="background:#f0f0f0;color:#999" data-as="${row.as}" data-mo="${m}" data-pr="0" data-co="${d.co}" data-mg="N/A" data-di="${d.di}" data-wd="${d.wd}" data-adr="0" data-adc="0" onmouseenter="showTip(event,this)" onmouseleave="hideTip()">N/A</span></td>`;
+        h += `<td style="text-align:center"><span class="mg-cell" style="background:#f0f0f0;color:#999" data-as="${row.as}" data-mo="${m}" data-pr="0" data-puf="0" data-co="${d.co}" data-mg="N/A" data-di="${d.di}" data-wd="${d.wd}" data-adr="0" data-adc="0" onmouseenter="showTip(event,this)" onmouseleave="hideTip()">N/A</span></td>`;
       } else { h += `<td style="text-align:center;color:#ccc">\u2014</td>`; }
     });
     if (row.ytdProd !== 0) {
@@ -641,7 +646,7 @@ function refreshConsultor(name) {
 const tip = document.getElementById('hoverTip');
 
 function showTip(ev, el) {
-  const ds = el.dataset; const as = ds.as, mo = ds.mo, pr = parseFloat(ds.pr), co = parseFloat(ds.co), mg = ds.mg;
+  const ds = el.dataset; const as = ds.as, mo = ds.mo, pr = parseFloat(ds.pr), puf = parseFloat(ds.puf || 0), co = parseFloat(ds.co), mg = ds.mg;
   const di = parseFloat(ds.di), wd = parseFloat(ds.wd), adrV = parseFloat(ds.adr), adcV = parseFloat(ds.adc);
   const key = `${as}|${mo}`; const cons = CONS[key] || [];
   // Calculate total holiday days for professionals on this activity-month
@@ -649,6 +654,7 @@ function showTip(ev, el) {
   const totalHoli = uniqueProfs.reduce((sum, name) => sum + (HOLI[`${name}|${mo}`] || 0), 0);
   let html = `<div style="margin-bottom:8px;font-weight:700;color:var(--accent);font-size:13px">${mlabel(mo)}</div>`;
   html += `<div class="tip-grid"><div class="tip-kpi"><div class="lbl">Producci\u00f3n</div><div class="val">${fmt(pr)}</div></div>`
+    + `<div class="tip-kpi"><div class="lbl">Prod UF</div><div class="val">${fmtUF(puf)}</div></div>`
     + `<div class="tip-kpi"><div class="lbl">Costo</div><div class="val" style="color:${co < 0 ? '#c0392b' : '#229954'}">${fmt(co)}</div></div>`
     + `<div class="tip-kpi"><div class="lbl">Margen</div><div class="val">${mg}${mg !== 'N/A' ? '%' : ''}</div></div></div>`;
   html += `<div class="tip-grid g5">`

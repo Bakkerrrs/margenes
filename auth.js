@@ -22,8 +22,8 @@ async function validatePassword(password) {
   const hash = await hashPassword(password);
   const rows = await supabaseFetch('app_settings', `key=eq.site_password&limit=1`);
   if (rows.length === 0) {
-    // No password set — allow access (first-time setup)
-    return true;
+    // No password configured — block access
+    return false;
   }
   return rows[0].value === hash;
 }

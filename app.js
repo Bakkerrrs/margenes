@@ -49,14 +49,30 @@ async function supabaseFetch(table, params = '') {
   return resp.json();
 }
 
+// Get row count for a table (using Supabase HEAD + Content-Range)
+async function fetchRowCount(table) {
+  const url = `${SUPABASE_URL}/rest/v1/${table}?select=id&limit=0`;
+  const resp = await fetch(url, {
+    method: 'HEAD',
+    headers: { ...supabaseHeaders(), 'Prefer': 'count=exact' },
+  });
+  const range = resp.headers.get('content-range');
+  if (range) {
+    const total = range.split('/')[1];
+    if (total && total !== '*') return parseInt(total);
+  }
+  return 0;
+}
+
 // Fetch all rows using pagination (Supabase default limit is 1000)
-async function fetchAllRows(table) {
+async function fetchAllRows(table, onProgress) {
   const rows = [];
   const pageSize = 1000;
   let offset = 0;
   while (true) {
     const batch = await supabaseFetch(table, `order=id&limit=${pageSize}&offset=${offset}`);
     rows.push(...batch);
+    if (onProgress) onProgress(rows.length);
     if (batch.length < pageSize) break;
     offset += pageSize;
   }
@@ -76,6 +92,13 @@ function showLoading(show, message) {
   }
 }
 
+function updateLoadingProgress(pct, detail) {
+  const fill = document.getElementById('loadingProgressFill');
+  const label = document.getElementById('loadingProgressLabel');
+  if (fill) fill.style.width = Math.min(100, Math.round(pct)) + '%';
+  if (label) label.textContent = detail || '';
+}
+
 function showError(msg) {
   const banner = document.getElementById('errorBanner');
   banner.textContent = msg;
@@ -84,20 +107,41 @@ function showError(msg) {
 
 async function loadData() {
   showLoading(true, 'Conectando con Supabase...');
+  updateLoadingProgress(0, '');
 
   try {
+    // Get row counts first for progress tracking
+    showLoading(true, 'Obteniendo tamaño de datos...');
+    updateLoadingProgress(2, 'Consultando tablas...');
+    const [actCount, consCount] = await Promise.all([
+      fetchRowCount('actividades'),
+      fetchRowCount('consultores'),
+    ]);
+    const totalRows = actCount + consCount;
+
     showLoading(true, 'Cargando actividades...');
-    const actRows = await fetchAllRows('actividades');
+    updateLoadingProgress(5, `0 / ${actCount.toLocaleString('es-CL')} actividades`);
+    const actRows = await fetchAllRows('actividades', (loaded) => {
+      const pct = 5 + (loaded / Math.max(actCount, 1)) * 45;
+      updateLoadingProgress(pct, `${loaded.toLocaleString('es-CL')} / ${actCount.toLocaleString('es-CL')} actividades`);
+    });
 
     showLoading(true, 'Cargando consultores...');
-    const consRows = await fetchAllRows('consultores');
+    updateLoadingProgress(50, `0 / ${consCount.toLocaleString('es-CL')} consultores`);
+    const consRows = await fetchAllRows('consultores', (loaded) => {
+      const pct = 50 + (loaded / Math.max(consCount, 1)) * 40;
+      updateLoadingProgress(pct, `${loaded.toLocaleString('es-CL')} / ${consCount.toLocaleString('es-CL')} consultores`);
+    });
+
+    showLoading(true, 'Procesando datos...');
+    updateLoadingProgress(92, 'Transformando registros...');
 
     // Transform actividades to array format matching original RAW.a
     // [0:month, 1:customer, 2:actShort, 3:actDesc, 4:tipoAT, 5:bu,
     //  6:prod, 7:total_costo_corregido, 8:margin (calculated), 9:billing, 10:jefatura,
     //  11:diasImputados, 12:workingDays, 13:fy, 14:pais, 15:quarter,
     //  16:project, 17:projectName, 18:subproject, 19:subprojectName,
-    //  20:irm, 21:keyBuFinal, 22:starterDate, 23:finisherDate]
+    //  20:irm, 21:keyBuFinal, 22:starterDate, 23:finisherDate, 24:totalProdUF]
     ALL = actRows.map(r => [
       r.month, r.customer, r.act_short, r.act_desc,
       r.tipo_at, r.bu,
@@ -105,7 +149,8 @@ async function loadData() {
       r.jefatura, Number(r.dias_imputados), Number(r.working_days), r.fy,
       r.pais || '', r.quarter || '',
       r.project || '', r.project_name || '', r.subproject || '', r.subproject_name || '',
-      r.irm || '', r.key_bu_final || '', r.starter_date || '', r.finisher_date || ''
+      r.irm || '', r.key_bu_final || '', r.starter_date || '', r.finisher_date || '',
+      Number(r.total_prod_uf) || 0
     ]);
 
     // Store raw consultores for Consultor tab
@@ -115,15 +160,16 @@ async function loadData() {
     CONS = {};
     HOLI = {};
     consRows.forEach(r => {
-      const key = `${r.act_short}|${r.month}`;
-      if (!CONS[key]) CONS[key] = [];
-      CONS[key].push([r.profesional || r.employee_name, r.jefe_directo, r.responsible_id || '']);
-      // Build holiday lookup: employee|month → dias
       const name = r.profesional || r.employee_name;
+      // Build holiday lookup: employee|month → dias (before filtering)
       if (r.report_code === 'Holiday' && name && r.month) {
         const hKey = `${name}|${r.month}`;
         HOLI[hKey] = (HOLI[hKey] || 0) + (Number(r.dias) || 0);
+        return; // Don't add holiday rows to CONS
       }
+      const key = `${r.act_short}|${r.month}`;
+      if (!CONS[key]) CONS[key] = [];
+      CONS[key].push([name, r.jefe_directo, r.responsible_id || '', Number(r.dias) || 0]);
     });
 
     // Build filter options from data
@@ -133,6 +179,7 @@ async function loadData() {
     F.cu = [...new Set(ALL.map(a => a[1]))].sort();
     F.je = [...new Set(ALL.map(a => a[10]))].sort();
 
+    updateLoadingProgress(100, 'Listo');
     showLoading(false);
     initUI();
   } catch (err) {
@@ -235,6 +282,7 @@ function flt(data) {
 
 function gri(mg) { for (let i = RANGES.length - 1; i >= 0; i--) { if (mg >= RANGES[i].lo) return i; } return 0; }
 function fmt(n) { if (n == null || isNaN(n)) return '-'; const a = Math.abs(n), s = n < 0 ? '-' : ''; if (a >= 1e6) return s + '$' + (a / 1e6).toFixed(1) + 'M'; if (a >= 1e3) return s + '$' + Math.round(a / 1e3) + 'K'; return s + '$' + Math.round(a); }
+function fmtUF(n) { if (n == null || isNaN(n) || n === 0) return '-'; const a = Math.abs(n), s = n < 0 ? '-' : ''; if (a >= 1e6) return s + (a / 1e6).toFixed(1) + 'M UF'; if (a >= 1e3) return s + (a / 1e3).toFixed(1) + 'K UF'; return s + a.toFixed(1) + ' UF'; }
 
 // ─── Main refresh ───
 
@@ -247,12 +295,14 @@ function refresh() {
   const tA = md.length, tP = md.reduce((s, a) => s + a[6], 0), tC = md.reduce((s, a) => s + a[7], 0);
   const wM = tP !== 0 ? ((tP + tC) / tP * 100) : 0;
   const tB = md.reduce((s, a) => s + a[9], 0);
+  const tPUF = md.reduce((s, a) => s + a[24], 0);
   const tDias = md.reduce((s, a) => s + a[11], 0);
   const adr = tDias > 0 ? (tP / tDias) : 0, adc = tDias > 0 ? (tC / tDias) : 0;
 
   document.getElementById('kpiRow').innerHTML = `
     <div class="kpi"><div class="kpi-label">Actividades</div><div class="kpi-value">${tA}</div></div>
     <div class="kpi"><div class="kpi-label">Producci\u00f3n Total</div><div class="kpi-value">${fmt(tP)}</div></div>
+    <div class="kpi"><div class="kpi-label">Prod UF</div><div class="kpi-value">${fmtUF(tPUF)}</div></div>
     <div class="kpi"><div class="kpi-label">Margen Ponderado</div><div class="kpi-value" style="color:${wM >= 30 ? '#02931C' : wM >= 25 ? '#E66C37' : '#D64550'}">${wM.toFixed(1)}%</div></div>
     <div class="kpi"><div class="kpi-label">Facturaci\u00f3n Total</div><div class="kpi-value">${fmt(tB)}</div></div>
     <div class="kpi"><div class="kpi-label">ADR <span style="font-weight:400;font-size:9px;color:var(--text3)">(Prod/D\u00eda)</span></div><div class="kpi-value" style="color:var(--accent)">${fmt(adr)}</div></div>
@@ -358,7 +408,7 @@ function refresh() {
 
 // ─── Resumen Table ───
 
-const SORT_COLS = [null, { k: 2, t: 's' }, { k: 3, t: 's' }, { k: 1, t: 's' }, { k: 5, t: 's' }, { k: 10, t: 's' }, { k: 6, t: 'n' }, { k: 7, t: 'n' }, { k: 8, t: 'n' }, { k: 9, t: 'n' }];
+const SORT_COLS = [null, { k: 2, t: 's' }, { k: 3, t: 's' }, { k: 1, t: 's' }, { k: 5, t: 's' }, { k: 10, t: 's' }, { k: 6, t: 'n' }, { k: 24, t: 'n' }, { k: 7, t: 'n' }, { k: 8, t: 'n' }, { k: 9, t: 'n' }];
 
 function doSort(ci) {
   if (sortCol === ci) { sortDir = sortDir === 'asc' ? 'desc' : 'asc'; } else { sortCol = ci; sortDir = 'asc'; }
@@ -370,8 +420,8 @@ function doSort(ci) {
 function renderTable(md, month) {
   const sc = SORT_COLS[sortCol];
   const sorted = [...md].sort((a, b) => { let va = a[sc.k], vb = b[sc.k]; if (sc.t === 's') { va = (va || '').toString().toLowerCase(); vb = (vb || '').toString().toLowerCase(); return sortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va); } return sortDir === 'asc' ? (va - vb) : (vb - va); });
-  const headers = ['', 'Actividad', 'Descripci\u00f3n', 'Cliente', 'BU', 'Jefatura', 'Producci\u00f3n', 'Costo', 'Margen%', 'Facturaci\u00f3n'];
-  const aligns = [null, null, null, null, null, null, 'right', 'right', 'right', 'right'];
+  const headers = ['', 'Actividad', 'Descripci\u00f3n', 'Cliente', 'BU', 'Jefatura', 'Producci\u00f3n', 'Prod UF', 'Costo', 'Margen%', 'Facturaci\u00f3n'];
+  const aligns = [null, null, null, null, null, null, 'right', 'right', 'right', 'right', 'right'];
   let h = '<table><thead><tr>';
   headers.forEach((hdr, i) => {
     const s = i > 0; const cls = s ? ` class="sortable${sortCol === i ? (' ' + sortDir) : ''}"` : ' style="width:24px"'; const al = aligns[i] ? ` style="text-align:${aligns[i]}"` : ''; const oc = s ? ` onclick="doSort(${i})"` : '';
@@ -387,13 +437,14 @@ function renderTable(md, month) {
       + `<td class="td-mono">${a[2]}</td><td class="td-name">${a[3]}</td><td class="td-name">${a[1]}</td>`
       + `<td>${a[5]}</td><td class="td-name">${a[10]}</td>`
       + `<td class="td-mono" style="text-align:right">${fmt(a[6])}</td>`
+      + `<td class="td-mono" style="text-align:right">${fmtUF(a[24])}</td>`
       + `<td class="td-mono" style="text-align:right;color:${a[7] < 0 ? '#c0392b' : '#229954'}">${fmt(a[7])}</td>`
       + `<td style="text-align:right"><span class="margin-badge ${cls}">${mgPct}${hasProd ? '%' : ''}</span></td>`
       + `<td class="td-mono" style="text-align:right">${fmt(a[9])}</td></tr>`;
     if (hasC) {
-      h += `<tr id="cr${idx}" class="consultant-row" style="display:none"><td></td><td colspan="9"><div style="padding:6px 0">`
-        + `<table style="width:100%;font-size:12px"><tr><th style="padding:5px 10px;text-align:left">Profesional</th><th style="padding:5px 10px;text-align:left">Jefe Directo</th><th style="padding:5px 10px;text-align:left">ADV</th></tr>`;
-      CONS[key].forEach(c => { h += `<tr><td style="padding:5px 10px;border-bottom:1px solid var(--border2)">${c[0]}</td><td style="padding:5px 10px;border-bottom:1px solid var(--border2)">${c[1]}</td><td style="padding:5px 10px;border-bottom:1px solid var(--border2)">${c[2]}</td></tr>`; });
+      h += `<tr id="cr${idx}" class="consultant-row" style="display:none"><td></td><td colspan="10"><div style="padding:6px 0">`
+        + `<table style="width:100%;font-size:12px"><tr><th style="padding:5px 10px;text-align:left">Profesional</th><th style="padding:5px 10px;text-align:left">ADV</th><th style="padding:5px 10px;text-align:left">Jefatura</th><th style="padding:5px 10px;text-align:right">D\u00edas Act.</th><th style="padding:5px 10px;text-align:right">Holidays</th></tr>`;
+      CONS[key].forEach(c => { const hd = HOLI[`${c[0]}|${month}`] || 0; h += `<tr><td style="padding:5px 10px;border-bottom:1px solid var(--border2)">${c[0]}</td><td style="padding:5px 10px;border-bottom:1px solid var(--border2)">${c[2]}</td><td style="padding:5px 10px;border-bottom:1px solid var(--border2)">${c[1]}</td><td style="padding:5px 10px;border-bottom:1px solid var(--border2);text-align:right">${c[3] > 0 ? c[3].toFixed(1) : ''}</td><td style="padding:5px 10px;border-bottom:1px solid var(--border2);text-align:right;color:#8e44ad">${hd > 0 ? hd.toFixed(1) : ''}</td></tr>`; });
       h += '</table></div></td></tr>';
     }
   });
@@ -432,13 +483,13 @@ function refreshDetalle() {
   fd.forEach(a => {
     const key = a[2];
     if (!acts[key]) { acts[key] = { as: a[2], ad: a[3], cu: a[1], bu: a[5], je: a[10], months: {} }; }
-    acts[key].months[a[0]] = { mg: a[8], pr: a[6], co: a[7], di: a[11], wd: a[12] };
+    acts[key].months[a[0]] = { mg: a[8], pr: a[6], co: a[7], di: a[11], wd: a[12], puf: a[24] };
   });
 
   let rows = Object.values(acts);
   rows.forEach(row => {
-    let tP = 0, tC = 0; Object.values(row.months).forEach(d => { tP += d.pr; tC += d.co; });
-    row.ytdProd = tP; row.ytdCost = tC; row.ytdMg = tP !== 0 ? (tP + tC) / tP : -999;
+    let tP = 0, tC = 0, tPUF = 0; Object.values(row.months).forEach(d => { tP += d.pr; tC += d.co; tPUF += d.puf; });
+    row.ytdProd = tP; row.ytdCost = tC; row.ytdProdUF = tPUF; row.ytdMg = tP !== 0 ? (tP + tC) / tP : -999;
   });
 
   rows.sort((a, b) => {
@@ -481,9 +532,9 @@ function refreshDetalle() {
       const d = row.months[m];
       if (d && d.pr !== 0) {
         const pct = (d.mg * 100).toFixed(1); const adrV = d.di > 0 ? (d.pr / d.di) : 0; const adcV = d.di > 0 ? (d.co / d.di) : 0;
-        h += `<td style="text-align:center"><span class="mg-cell" style="${mgBg(d.mg)}" data-as="${row.as}" data-mo="${m}" data-pr="${d.pr}" data-co="${d.co}" data-mg="${pct}" data-di="${d.di}" data-wd="${d.wd}" data-adr="${Math.round(adrV)}" data-adc="${Math.round(adcV)}" onmouseenter="showTip(event,this)" onmouseleave="hideTip()">${pct}%</span></td>`;
+        h += `<td style="text-align:center"><span class="mg-cell" style="${mgBg(d.mg)}" data-as="${row.as}" data-mo="${m}" data-pr="${d.pr}" data-puf="${d.puf}" data-co="${d.co}" data-mg="${pct}" data-di="${d.di}" data-wd="${d.wd}" data-adr="${Math.round(adrV)}" data-adc="${Math.round(adcV)}" onmouseenter="showTip(event,this)" onmouseleave="hideTip()">${pct}%</span></td>`;
       } else if (d && d.pr === 0) {
-        h += `<td style="text-align:center"><span class="mg-cell" style="background:#f0f0f0;color:#999" data-as="${row.as}" data-mo="${m}" data-pr="0" data-co="${d.co}" data-mg="N/A" data-di="${d.di}" data-wd="${d.wd}" data-adr="0" data-adc="0" onmouseenter="showTip(event,this)" onmouseleave="hideTip()">N/A</span></td>`;
+        h += `<td style="text-align:center"><span class="mg-cell" style="background:#f0f0f0;color:#999" data-as="${row.as}" data-mo="${m}" data-pr="0" data-puf="0" data-co="${d.co}" data-mg="N/A" data-di="${d.di}" data-wd="${d.wd}" data-adr="0" data-adc="0" onmouseenter="showTip(event,this)" onmouseleave="hideTip()">N/A</span></td>`;
       } else { h += `<td style="text-align:center;color:#ccc">\u2014</td>`; }
     });
     if (row.ytdProd !== 0) {
@@ -590,18 +641,26 @@ function refreshConsultor(name) {
 
   // Filter rows for this consultant, get activity description from ALL lookup
   const actDesc = {}; ALL.forEach(a => { actDesc[a[2]] = a[3]; });
+  // Build lookup for activity-month → prod, prodUF, margin from actividades
+  const actData = {}; ALL.forEach(a => { actData[`${a[2]}|${a[0]}`] = { pr: a[6], puf: a[24], mg: a[8] }; });
   const rows = CONS_RAW
     .filter(r => (r.profesional || r.employee_name) === name)
-    .map(r => ({
-      act: r.act_short || '',
-      desc: actDesc[r.act_short] || r.activity_name || '',
-      month: r.month || '',
-      adv: r.responsible_id || '',
-      jef: r.jefe_directo || '',
-      dias: Number(r.dias) || 0,
-      costo: Number(r.costo_mensual) || 0,
-      report: r.report_code || ''
-    }))
+    .map(r => {
+      const ad = actData[`${r.act_short}|${r.month}`] || { pr: 0, puf: 0, mg: 0 };
+      return {
+        act: r.act_short || '',
+        desc: actDesc[r.act_short] || r.activity_name || '',
+        month: r.month || '',
+        adv: r.responsible_id || '',
+        jef: r.jefe_directo || '',
+        dias: Number(r.dias) || 0,
+        costo: Number(r.costo_mensual) || 0,
+        report: r.report_code || '',
+        prod: ad.pr,
+        prodUF: ad.puf,
+        margin: ad.mg
+      };
+    })
     .sort((a, b) => b.month.localeCompare(a.month) || a.act.localeCompare(b.act));
 
   let h = '<table><thead><tr>';
@@ -612,11 +671,17 @@ function refreshConsultor(name) {
   h += '<th class="sortable" style="cursor:default">Jefatura</th>';
   h += '<th class="sortable" style="cursor:default;text-align:right">D\u00edas</th>';
   h += '<th class="sortable" style="cursor:default;text-align:right">Costo</th>';
+  h += '<th class="sortable" style="cursor:default;text-align:right">Producci\u00f3n</th>';
+  h += '<th class="sortable" style="cursor:default;text-align:right">Prod UF</th>';
+  h += '<th class="sortable" style="cursor:default;text-align:right">Margen%</th>';
   h += '</tr></thead><tbody>';
 
   const bands = buildMonthBands(rows);
   rows.forEach((r, i) => {
     const band = bands[i] ? ' class="month-band"' : '';
+    const hasProd = r.prod !== 0;
+    const mgPct = hasProd ? (r.margin * 100).toFixed(1) : 'N/A';
+    const mgColor = !hasProd ? '#999' : r.margin >= 0.34 ? '#02931C' : r.margin >= 0.30 ? '#5a6600' : r.margin >= 0.28 ? '#b45309' : r.margin >= 0.25 ? '#D64550' : '#1a1a1a';
     h += `<tr${band}>`;
     h += `<td class="td-mono" style="font-size:11px">${r.act}</td>`;
     h += `<td class="td-name">${r.desc}</td>`;
@@ -625,11 +690,14 @@ function refreshConsultor(name) {
     h += `<td class="td-name" style="font-size:11px">${r.jef}</td>`;
     h += `<td class="td-mono" style="text-align:right">${r.dias.toFixed(1)}</td>`;
     h += `<td class="td-mono" style="text-align:right;color:${r.costo < 0 ? '#c0392b' : '#229954'}">${fmt(r.costo)}</td>`;
+    h += `<td class="td-mono" style="text-align:right">${fmt(r.prod)}</td>`;
+    h += `<td class="td-mono" style="text-align:right">${fmtUF(r.prodUF)}</td>`;
+    h += `<td style="text-align:right;color:${mgColor};font-weight:600">${mgPct}${hasProd ? '%' : ''}</td>`;
     h += '</tr>';
   });
 
   if (rows.length === 0) {
-    h += '<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px">Sin registros</td></tr>';
+    h += '<tr><td colspan="10" style="text-align:center;color:var(--text3);padding:20px">Sin registros</td></tr>';
   }
 
   h += '</tbody></table>';
@@ -641,27 +709,34 @@ function refreshConsultor(name) {
 const tip = document.getElementById('hoverTip');
 
 function showTip(ev, el) {
-  const ds = el.dataset; const as = ds.as, mo = ds.mo, pr = parseFloat(ds.pr), co = parseFloat(ds.co), mg = ds.mg;
+  const ds = el.dataset; const as = ds.as, mo = ds.mo, pr = parseFloat(ds.pr), puf = parseFloat(ds.puf || 0), co = parseFloat(ds.co);
   const di = parseFloat(ds.di), wd = parseFloat(ds.wd), adrV = parseFloat(ds.adr), adcV = parseFloat(ds.adc);
   const key = `${as}|${mo}`; const cons = CONS[key] || [];
-  // Calculate total holiday days for professionals on this activity-month
+  // Count unique professionals and calculate working days breakdown
   const uniqueProfs = [...new Set(cons.map(c => c[0]))];
+  const nProfs = uniqueProfs.length;
   const totalHoli = uniqueProfs.reduce((sum, name) => sum + (HOLI[`${name}|${mo}`] || 0), 0);
+  const wdUnit = nProfs > 0 ? Math.round(wd / nProfs) : wd;
+  const wdLabel = nProfs > 1 ? `${wd} (${wdUnit} × ${nProfs})` : `${wd}`;
   let html = `<div style="margin-bottom:8px;font-weight:700;color:var(--accent);font-size:13px">${mlabel(mo)}</div>`;
   html += `<div class="tip-grid"><div class="tip-kpi"><div class="lbl">Producci\u00f3n</div><div class="val">${fmt(pr)}</div></div>`
-    + `<div class="tip-kpi"><div class="lbl">Costo</div><div class="val" style="color:${co < 0 ? '#c0392b' : '#229954'}">${fmt(co)}</div></div>`
-    + `<div class="tip-kpi"><div class="lbl">Margen</div><div class="val">${mg}${mg !== 'N/A' ? '%' : ''}</div></div></div>`;
+    + `<div class="tip-kpi"><div class="lbl">Prod UF</div><div class="val">${fmtUF(puf)}</div></div>`
+    + `<div class="tip-kpi"><div class="lbl">Costo</div><div class="val" style="color:${co < 0 ? '#c0392b' : '#229954'}">${fmt(co)}</div></div></div>`;
   html += `<div class="tip-grid g5">`
     + `<div class="tip-kpi"><div class="lbl">D\u00edas Imput.</div><div class="val">${di.toFixed(1)}</div></div>`
-    + `<div class="tip-kpi"><div class="lbl">Working Days</div><div class="val">${wd}</div></div>`
-    + `<div class="tip-kpi"><div class="lbl">Holidays</div><div class="val" style="color:#8e44ad">${totalHoli.toFixed(1)}</div></div>`
+    + `<div class="tip-kpi"><div class="lbl">Working Days</div><div class="val">${wdLabel}</div></div>`
+    + `<div class="tip-kpi"><div class="lbl">Holidays</div><div class="val" style="color:#8e44ad">${totalHoli > 0 ? totalHoli.toFixed(1) : ''}</div></div>`
     + `<div class="tip-kpi"><div class="lbl">ADR</div><div class="val" style="color:var(--accent)">${fmt(adrV)}</div></div>`
     + `<div class="tip-kpi"><div class="lbl">ADC</div><div class="val" style="color:#c0392b">${fmt(adcV)}</div></div></div>`;
   if (cons.length > 0) {
     html += `<div style="border-top:1px solid var(--border2);padding-top:6px;margin-top:2px">`;
     html += `<div style="font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:var(--text3);margin-bottom:4px;font-weight:600">Profesionales (${cons.length})</div>`;
-    cons.forEach(c => { const hd = HOLI[`${c[0]}|${mo}`] || 0; html += `<div style="display:flex;justify-content:space-between;gap:12px;padding:2px 0;border-bottom:1px solid #f0f0f0"><span>${c[0]}</span><span style="color:#8e44ad;font-size:11px;min-width:40px;text-align:right">${hd > 0 ? hd.toFixed(1) + 'd vac' : ''}</span>${c[2] ? `<span style="color:var(--text3);font-size:11px">${c[2]}</span>` : ''}<span style="color:var(--text3);font-size:11px">${c[1]}</span></div>`; });
-    html += `</div>`;
+    html += `<table style="width:100%;font-size:11px;border-collapse:collapse"><tr style="color:var(--text3);font-size:10px;text-transform:uppercase;letter-spacing:0.3px"><th style="text-align:left;padding:2px 4px;font-weight:600">Nombre</th><th style="text-align:left;padding:2px 4px;font-weight:600">ADV</th><th style="text-align:left;padding:2px 4px;font-weight:600">Jefatura</th><th style="text-align:right;padding:2px 4px;font-weight:600">D\u00edas Act.</th><th style="text-align:right;padding:2px 4px;font-weight:600">Holidays</th></tr>`;
+    cons.forEach(c => {
+      const hd = HOLI[`${c[0]}|${mo}`] || 0;
+      html += `<tr style="border-bottom:1px solid #f0f0f0"><td style="padding:2px 4px">${c[0]}</td><td style="padding:2px 4px;color:var(--text3)">${c[2]}</td><td style="padding:2px 4px;color:var(--text3)">${c[1]}</td><td style="text-align:right;padding:2px 4px">${c[3] > 0 ? c[3].toFixed(1) : ''}</td><td style="text-align:right;padding:2px 4px;color:#8e44ad">${hd > 0 ? hd.toFixed(1) : ''}</td></tr>`;
+    });
+    html += `</table></div>`;
   }
   tip.innerHTML = html; tip.style.display = 'block';
   const rect = el.getBoundingClientRect();
@@ -1057,4 +1132,8 @@ async function impClearTables() {
 }
 
 // ─── Start ───
-document.addEventListener('DOMContentLoaded', loadData);
+// La carga de datos es controlada por auth.js después de autenticación
+// Si auth.js no está presente, cargar directamente (fallback)
+if (typeof handlePasswordSubmit === 'undefined') {
+  document.addEventListener('DOMContentLoaded', loadData);
+}

@@ -10,24 +10,49 @@
 </head>
 <body>
 
+<!-- Password Gate -->
+<div id="loginScreen" class="login-screen" style="display:none">
+  <div class="login-card">
+    <div class="login-logo">
+      <img src="https://sii-group.com/themes/custom/sii/logo.svg" alt="SII Group" height="42">
+    </div>
+    <h2 class="login-title">Panel de Márgenes</h2>
+    <p class="login-subtitle">Bienvenido. Ingresa la contraseña para continuar.</p>
+    <div id="loginError" class="login-error" style="display:none"></div>
+    <form id="passwordForm" onsubmit="return handlePasswordSubmit(event)" style="margin-top:8px">
+      <input type="password" id="passwordInput" class="password-input" placeholder="Contraseña" autocomplete="off" autofocus>
+      <button type="submit" class="login-btn-ms" style="margin-top:12px;width:100%;justify-content:center">
+        Ingresar
+      </button>
+    </form>
+  </div>
+</div>
+
+<!-- App Container (hidden until authenticated) -->
+<div id="appContainer" style="display:none">
+
 <div id="loadingOverlay" class="loading-overlay">
   <div class="loading-spinner"></div>
   <div id="loadingText" class="loading-text">Cargando datos...</div>
+  <div class="loading-progress-wrap">
+    <div class="loading-progress-bar"><div class="loading-progress-fill" id="loadingProgressFill"></div></div>
+    <div class="loading-progress-label" id="loadingProgressLabel"></div>
+  </div>
 </div>
 
 <div id="errorBanner" class="error-banner" style="display:none"></div>
 
 <div class="header">
   <div class="logo-mark">
-    <svg width="40" height="28" viewBox="0 0 60 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M8 32C8 32 14 8 22 8C26 8 24 20 28 20C32 20 30 8 34 8C42 8 36 32 36 32" stroke="#1b5fa8" stroke-width="4" stroke-linecap="round" fill="none"/>
-      <path d="M36 12C40 8 48 6 52 10C56 14 50 20 46 18" stroke="#1b5fa8" stroke-width="4" stroke-linecap="round" fill="none"/>
-    </svg>
+    <img src="https://sii-group.com/themes/custom/sii/logo.svg" alt="SII Group" height="28">
   </div>
   <h1>Panel de Márgenes</h1>
   <div class="sep"></div>
   <span class="subtitle">Gestión y seguimiento de márgenes por actividad</span>
-  <div class="right-info"><span class="fy-badge" id="fyBadge"></span></div>
+  <div class="right-info">
+    <span class="fy-badge" id="fyBadge"></span>
+    <div id="userInfo" class="user-info"></div>
+  </div>
 </div>
 
 <div class="filters-bar">
@@ -63,6 +88,7 @@
     <div class="tab" onclick="switchTab('detalle')">Detalle</div>
     <div class="tab" onclick="switchTab('consultor')">Consultor</div>
     <div class="tab" onclick="switchTab('importar')">Importar Excel</div>
+    <div class="tab" id="tabAdminBtn" onclick="switchTab('admin')" style="display:none">Usuarios</div>
   </div>
   <div id="tabResumen">
     <div class="kpi-row" id="kpiRow"></div>
@@ -157,10 +183,37 @@
       <div class="import-log" id="impLog"></div>
     </div>
   </div>
+
+  <!-- Admin Tab: User Management -->
+  <div id="tabAdmin" style="display:none">
+    <div class="card">
+      <div class="card-title"><span class="ta">●</span> Gestión de Usuarios</div>
+      <p style="font-size:12px;color:var(--text3);margin-bottom:14px">Administra los roles y estados de los usuarios registrados.</p>
+      <div class="table-wrap" id="adminTableWrap" style="max-height:600px">
+        <table id="adminTable">
+          <thead>
+            <tr>
+              <th>Email</th>
+              <th>Nombre</th>
+              <th>Rol</th>
+              <th>Estado</th>
+              <th>Primer acceso</th>
+              <th>Último acceso</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="adminTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
 </div>
 
-<div id="hoverTip" style="display:none;position:fixed;z-index:999;background:#fff;border:1px solid var(--border);border-radius:8px;padding:14px 16px;box-shadow:0 4px 16px rgba(0,0,0,0.12);pointer-events:none;max-width:400px;font-size:12px;color:var(--text)"></div>
+<div id="hoverTip" style="display:none;position:fixed;z-index:999;background:#fff;border:1px solid var(--border);border-radius:8px;padding:14px 16px;box-shadow:0 4px 16px rgba(0,0,0,0.12);pointer-events:none;max-width:620px;font-size:12px;color:var(--text);white-space:nowrap"></div>
+
+</div><!-- /appContainer -->
 
 <script src="app.js"></script>
+<script src="auth.js"></script>
 </body>
 </html>

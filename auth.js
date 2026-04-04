@@ -1,10 +1,7 @@
-// ─── Password Gate + Supabase User Management ───
-// Password is stored as SHA-256 hash in app_settings table
+// ─── Password Gate + Import Auth ───
+// Passwords stored as SHA-256 hashes in app_settings table
 
-// Dominios permitidos (reserved for future SSO use)
-const ALLOWED_DOMAINS = ['siigroup.cl'];
-
-let currentDbUser = null;
+let impCredentials = null; // { url, key } loaded from app_settings after import auth
 
 // ─── Password hashing (SHA-256 via Web Crypto API) ───
 
@@ -21,27 +18,70 @@ async function hashPassword(password) {
 async function validatePassword(password) {
   const hash = await hashPassword(password);
   const rows = await supabaseFetch('app_settings', `key=eq.site_password&limit=1`);
-  if (rows.length === 0) {
-    // No password configured — block access
-    return false;
-  }
+  if (rows.length === 0) return false;
   return rows[0].value === hash;
 }
 
-// ─── Supabase user helpers ───
-
-async function fetchAllAppUsers() {
-  return supabaseFetch('app_users', 'order=created_at.desc');
+async function validateImportPassword(password) {
+  const hash = await hashPassword(password);
+  const rows = await supabaseFetch('app_settings', `key=eq.import_password&limit=1`);
+  if (rows.length === 0) return false;
+  return rows[0].value === hash;
 }
 
-async function updateAppUser(id, fields) {
-  const url = `${SUPABASE_URL}/rest/v1/app_users?id=eq.${id}`;
-  const resp = await fetch(url, {
-    method: 'PATCH',
-    headers: supabaseHeaders(),
-    body: JSON.stringify(fields),
-  });
-  if (!resp.ok) throw new Error('Error updating user: ' + await resp.text());
+async function loadImportCredentials() {
+  const rows = await supabaseFetch('app_settings', `key=in.(import_supabase_url,import_service_key)`);
+  const urlRow = rows.find(r => r.key === 'import_supabase_url');
+  const keyRow = rows.find(r => r.key === 'import_service_key');
+  if (urlRow && keyRow) {
+    return { url: urlRow.value, key: keyRow.value };
+  }
+  return null;
+}
+
+// ─── Import auth handler ───
+
+async function impAuth() {
+  const input = document.getElementById('impPassword');
+  const errEl = document.getElementById('impAuthError');
+  const password = input.value.trim();
+
+  if (!password) { errEl.textContent = 'Ingresa la contraseña.'; errEl.style.display = 'block'; return; }
+  errEl.style.display = 'none';
+  input.disabled = true;
+
+  try {
+    const valid = await validateImportPassword(password);
+    if (!valid) {
+      errEl.textContent = 'Contraseña incorrecta.';
+      errEl.style.display = 'block';
+      input.value = '';
+      input.focus();
+      input.disabled = false;
+      return;
+    }
+
+    // Load credentials from DB
+    impCredentials = await loadImportCredentials();
+    if (!impCredentials) {
+      errEl.textContent = 'Credenciales de importación no configuradas en app_settings.';
+      errEl.style.display = 'block';
+      input.disabled = false;
+      return;
+    }
+
+    // Show success, unlock steps
+    document.getElementById('impAuthForm').style.display = 'none';
+    document.getElementById('impAuthOk').style.display = '';
+    document.getElementById('impStep2').style.opacity = '1';
+    document.getElementById('impStep2').style.pointerEvents = '';
+    document.getElementById('impStep3').style.opacity = '1';
+    document.getElementById('impStep3').style.pointerEvents = '';
+  } catch (err) {
+    errEl.textContent = 'Error: ' + err.message;
+    errEl.style.display = 'block';
+    input.disabled = false;
+  }
 }
 
 // ─── UI functions ───
@@ -66,11 +106,6 @@ function showApp() {
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('appContainer').style.display = '';
 
-  // Show admin tab (password-gated app = trusted user)
-  const adminBtn = document.getElementById('tabAdminBtn');
-  if (adminBtn) adminBtn.style.display = '';
-
-  // Load dashboard data
   if (typeof loadData === 'function') {
     loadData();
   }
@@ -95,7 +130,6 @@ async function handlePasswordSubmit(e) {
     return false;
   }
 
-  // Disable form while validating
   input.disabled = true;
   const btn = document.querySelector('#passwordForm button');
   const origText = btn.textContent;
@@ -124,97 +158,15 @@ async function handlePasswordSubmit(e) {
   return false;
 }
 
-// ─── Admin Panel ───
-
-async function loadAdminPanel() {
-  const tbody = document.getElementById('adminTableBody');
-  if (!tbody) return;
-  tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px">Cargando usuarios...</td></tr>';
-
-  try {
-    const users = await fetchAllAppUsers();
-    if (users.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px">No hay usuarios registrados</td></tr>';
-      return;
-    }
-
-    tbody.innerHTML = users.map(u => {
-      const statusCls = u.status === 'active' ? 'status-active' : 'status-inactive';
-      const roleCls = u.role === 'admin' ? 'role-admin' : 'role-user';
-      return `<tr>
-        <td style="font-size:12px">${u.email}</td>
-        <td>${u.name || '-'}</td>
-        <td><span class="admin-badge ${roleCls}">${u.role}</span></td>
-        <td><span class="admin-badge ${statusCls}">${u.status}</span></td>
-        <td style="font-size:11px;color:var(--text3)">${u.created_at ? new Date(u.created_at).toLocaleDateString('es-CL') : '-'}</td>
-        <td style="font-size:11px;color:var(--text3)">${u.last_login ? new Date(u.last_login).toLocaleDateString('es-CL') : '-'}</td>
-        <td>
-          <select class="admin-action-select" onchange="adminAction(${u.id}, this.value, this)" data-uid="${u.id}">
-            <option value="">Acción...</option>
-            <option value="role:admin" ${u.role === 'admin' ? 'disabled' : ''}>Hacer Admin</option>
-            <option value="role:user" ${u.role === 'user' ? 'disabled' : ''}>Hacer User</option>
-            <option value="status:active" ${u.status === 'active' ? 'disabled' : ''}>Activar</option>
-            <option value="status:inactive" ${u.status === 'inactive' ? 'disabled' : ''}>Desactivar</option>
-          </select>
-        </td>
-      </tr>`;
-    }).join('');
-  } catch (err) {
-    console.error('Admin panel error:', err);
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#dc2626;padding:20px">Error cargando usuarios</td></tr>';
-  }
-}
-
-async function adminAction(userId, action, selectEl) {
-  if (!action) return;
-  const [field, value] = action.split(':');
-  try {
-    await updateAppUser(userId, { [field]: value });
-    await loadAdminPanel();
-  } catch (err) {
-    alert('Error: ' + err.message);
-  }
-  if (selectEl) selectEl.value = '';
-}
-
-// ─── Hook into switchTab ───
-
-function patchSwitchTab() {
-  if (typeof switchTab !== 'function') return;
-  const original = switchTab;
-  window.switchTab = function(tab) {
-    const adminPanel = document.getElementById('tabAdmin');
-    if (adminPanel) adminPanel.style.display = 'none';
-
-    if (tab === 'admin') {
-      ['tabResumen', 'tabDetalle', 'tabConsultor', 'tabImportar'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.style.display = 'none';
-      });
-      adminPanel.style.display = '';
-      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-      document.getElementById('tabAdminBtn').classList.add('active');
-      loadAdminPanel();
-    } else {
-      original(tab);
-    }
-  };
-}
-
 // ─── Initialization ───
 
 document.addEventListener('DOMContentLoaded', function () {
-  patchSwitchTab();
-
-  // Check if already authenticated in this session
   if (sessionStorage.getItem('margenes_auth') === 'ok') {
     showApp();
     return;
   }
 
-  // Show password gate
   showLoginScreen();
-  // Focus password input
   const input = document.getElementById('passwordInput');
   if (input) input.focus();
 });

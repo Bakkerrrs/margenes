@@ -162,7 +162,7 @@ async function loadData() {
     consRows.forEach(r => {
       const key = `${r.act_short}|${r.month}`;
       if (!CONS[key]) CONS[key] = [];
-      CONS[key].push([r.profesional || r.employee_name, r.jefe_directo, r.responsible_id || '']);
+      CONS[key].push([r.profesional || r.employee_name, r.jefe_directo, r.responsible_id || '', Number(r.dias) || 0]);
       // Build holiday lookup: employee|month → dias
       const name = r.profesional || r.employee_name;
       if (r.report_code === 'Holiday' && name && r.month) {
@@ -442,8 +442,8 @@ function renderTable(md, month) {
       + `<td class="td-mono" style="text-align:right">${fmt(a[9])}</td></tr>`;
     if (hasC) {
       h += `<tr id="cr${idx}" class="consultant-row" style="display:none"><td></td><td colspan="10"><div style="padding:6px 0">`
-        + `<table style="width:100%;font-size:12px"><tr><th style="padding:5px 10px;text-align:left">Profesional</th><th style="padding:5px 10px;text-align:left">Jefe Directo</th><th style="padding:5px 10px;text-align:left">ADV</th></tr>`;
-      CONS[key].forEach(c => { h += `<tr><td style="padding:5px 10px;border-bottom:1px solid var(--border2)">${c[0]}</td><td style="padding:5px 10px;border-bottom:1px solid var(--border2)">${c[1]}</td><td style="padding:5px 10px;border-bottom:1px solid var(--border2)">${c[2]}</td></tr>`; });
+        + `<table style="width:100%;font-size:12px"><tr><th style="padding:5px 10px;text-align:left">Profesional</th><th style="padding:5px 10px;text-align:left">ADV</th><th style="padding:5px 10px;text-align:left">Jefatura</th><th style="padding:5px 10px;text-align:right">D\u00edas Act.</th><th style="padding:5px 10px;text-align:right">Holidays</th></tr>`;
+      CONS[key].forEach(c => { const hd = HOLI[`${c[0]}|${month}`] || 0; h += `<tr><td style="padding:5px 10px;border-bottom:1px solid var(--border2)">${c[0]}</td><td style="padding:5px 10px;border-bottom:1px solid var(--border2)">${c[2]}</td><td style="padding:5px 10px;border-bottom:1px solid var(--border2)">${c[1]}</td><td style="padding:5px 10px;border-bottom:1px solid var(--border2);text-align:right">${c[3] > 0 ? c[3].toFixed(1) : ''}</td><td style="padding:5px 10px;border-bottom:1px solid var(--border2);text-align:right;color:#8e44ad">${hd > 0 ? hd.toFixed(1) : ''}</td></tr>`; });
       h += '</table></div></td></tr>';
     }
   });
@@ -728,8 +728,12 @@ function showTip(ev, el) {
   if (cons.length > 0) {
     html += `<div style="border-top:1px solid var(--border2);padding-top:6px;margin-top:2px">`;
     html += `<div style="font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:var(--text3);margin-bottom:4px;font-weight:600">Profesionales (${cons.length})</div>`;
-    cons.forEach(c => { const hd = HOLI[`${c[0]}|${mo}`] || 0; html += `<div style="display:flex;justify-content:space-between;gap:12px;padding:2px 0;border-bottom:1px solid #f0f0f0"><span>${c[0]}</span><span style="color:#8e44ad;font-size:11px;min-width:40px;text-align:right">${hd > 0 ? hd.toFixed(1) + 'd vac' : ''}</span>${c[2] ? `<span style="color:var(--text3);font-size:11px">${c[2]}</span>` : ''}<span style="color:var(--text3);font-size:11px">${c[1]}</span></div>`; });
-    html += `</div>`;
+    html += `<table style="width:100%;font-size:11px;border-collapse:collapse"><tr style="color:var(--text3);font-size:10px;text-transform:uppercase;letter-spacing:0.3px"><th style="text-align:left;padding:2px 4px;font-weight:600">Nombre</th><th style="text-align:left;padding:2px 4px;font-weight:600">ADV</th><th style="text-align:left;padding:2px 4px;font-weight:600">Jefatura</th><th style="text-align:right;padding:2px 4px;font-weight:600">D\u00edas Act.</th><th style="text-align:right;padding:2px 4px;font-weight:600">Holidays</th></tr>`;
+    cons.forEach(c => {
+      const hd = HOLI[`${c[0]}|${mo}`] || 0;
+      html += `<tr style="border-bottom:1px solid #f0f0f0"><td style="padding:2px 4px">${c[0]}</td><td style="padding:2px 4px;color:var(--text3)">${c[2]}</td><td style="padding:2px 4px;color:var(--text3)">${c[1]}</td><td style="text-align:right;padding:2px 4px">${c[3] > 0 ? c[3].toFixed(1) : ''}</td><td style="text-align:right;padding:2px 4px;color:#8e44ad">${hd > 0 ? hd.toFixed(1) : ''}</td></tr>`;
+    });
+    html += `</table></div>`;
   }
   tip.innerHTML = html; tip.style.display = 'block';
   const rect = el.getBoundingClientRect();

@@ -49,14 +49,30 @@ async function supabaseFetch(table, params = '') {
   return resp.json();
 }
 
+// Get row count for a table (using Supabase HEAD + Content-Range)
+async function fetchRowCount(table) {
+  const url = `${SUPABASE_URL}/rest/v1/${table}?select=id&limit=0`;
+  const resp = await fetch(url, {
+    method: 'HEAD',
+    headers: { ...supabaseHeaders(), 'Prefer': 'count=exact' },
+  });
+  const range = resp.headers.get('content-range');
+  if (range) {
+    const total = range.split('/')[1];
+    if (total && total !== '*') return parseInt(total);
+  }
+  return 0;
+}
+
 // Fetch all rows using pagination (Supabase default limit is 1000)
-async function fetchAllRows(table) {
+async function fetchAllRows(table, onProgress) {
   const rows = [];
   const pageSize = 1000;
   let offset = 0;
   while (true) {
     const batch = await supabaseFetch(table, `order=id&limit=${pageSize}&offset=${offset}`);
     rows.push(...batch);
+    if (onProgress) onProgress(rows.length);
     if (batch.length < pageSize) break;
     offset += pageSize;
   }
@@ -76,6 +92,13 @@ function showLoading(show, message) {
   }
 }
 
+function updateLoadingProgress(pct, detail) {
+  const fill = document.getElementById('loadingProgressFill');
+  const label = document.getElementById('loadingProgressLabel');
+  if (fill) fill.style.width = Math.min(100, Math.round(pct)) + '%';
+  if (label) label.textContent = detail || '';
+}
+
 function showError(msg) {
   const banner = document.getElementById('errorBanner');
   banner.textContent = msg;
@@ -84,13 +107,34 @@ function showError(msg) {
 
 async function loadData() {
   showLoading(true, 'Conectando con Supabase...');
+  updateLoadingProgress(0, '');
 
   try {
+    // Get row counts first for progress tracking
+    showLoading(true, 'Obteniendo tamaño de datos...');
+    updateLoadingProgress(2, 'Consultando tablas...');
+    const [actCount, consCount] = await Promise.all([
+      fetchRowCount('actividades'),
+      fetchRowCount('consultores'),
+    ]);
+    const totalRows = actCount + consCount;
+
     showLoading(true, 'Cargando actividades...');
-    const actRows = await fetchAllRows('actividades');
+    updateLoadingProgress(5, `0 / ${actCount.toLocaleString('es-CL')} actividades`);
+    const actRows = await fetchAllRows('actividades', (loaded) => {
+      const pct = 5 + (loaded / Math.max(actCount, 1)) * 45;
+      updateLoadingProgress(pct, `${loaded.toLocaleString('es-CL')} / ${actCount.toLocaleString('es-CL')} actividades`);
+    });
 
     showLoading(true, 'Cargando consultores...');
-    const consRows = await fetchAllRows('consultores');
+    updateLoadingProgress(50, `0 / ${consCount.toLocaleString('es-CL')} consultores`);
+    const consRows = await fetchAllRows('consultores', (loaded) => {
+      const pct = 50 + (loaded / Math.max(consCount, 1)) * 40;
+      updateLoadingProgress(pct, `${loaded.toLocaleString('es-CL')} / ${consCount.toLocaleString('es-CL')} consultores`);
+    });
+
+    showLoading(true, 'Procesando datos...');
+    updateLoadingProgress(92, 'Transformando registros...');
 
     // Transform actividades to array format matching original RAW.a
     // [0:month, 1:customer, 2:actShort, 3:actDesc, 4:tipoAT, 5:bu,
@@ -134,6 +178,7 @@ async function loadData() {
     F.cu = [...new Set(ALL.map(a => a[1]))].sort();
     F.je = [...new Set(ALL.map(a => a[10]))].sort();
 
+    updateLoadingProgress(100, 'Listo');
     showLoading(false);
     initUI();
   } catch (err) {

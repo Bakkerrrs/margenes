@@ -160,15 +160,16 @@ async function loadData() {
     CONS = {};
     HOLI = {};
     consRows.forEach(r => {
-      const key = `${r.act_short}|${r.month}`;
-      if (!CONS[key]) CONS[key] = [];
-      CONS[key].push([r.profesional || r.employee_name, r.jefe_directo, r.responsible_id || '', Number(r.dias) || 0]);
-      // Build holiday lookup: employee|month → dias
       const name = r.profesional || r.employee_name;
+      // Build holiday lookup: employee|month → dias (before filtering)
       if (r.report_code === 'Holiday' && name && r.month) {
         const hKey = `${name}|${r.month}`;
         HOLI[hKey] = (HOLI[hKey] || 0) + (Number(r.dias) || 0);
+        return; // Don't add holiday rows to CONS
       }
+      const key = `${r.act_short}|${r.month}`;
+      if (!CONS[key]) CONS[key] = [];
+      CONS[key].push([name, r.jefe_directo, r.responsible_id || '', Number(r.dias) || 0]);
     });
 
     // Build filter options from data
@@ -708,21 +709,23 @@ function refreshConsultor(name) {
 const tip = document.getElementById('hoverTip');
 
 function showTip(ev, el) {
-  const ds = el.dataset; const as = ds.as, mo = ds.mo, pr = parseFloat(ds.pr), puf = parseFloat(ds.puf || 0), co = parseFloat(ds.co), mg = ds.mg;
+  const ds = el.dataset; const as = ds.as, mo = ds.mo, pr = parseFloat(ds.pr), puf = parseFloat(ds.puf || 0), co = parseFloat(ds.co);
   const di = parseFloat(ds.di), wd = parseFloat(ds.wd), adrV = parseFloat(ds.adr), adcV = parseFloat(ds.adc);
   const key = `${as}|${mo}`; const cons = CONS[key] || [];
-  // Calculate total holiday days for professionals on this activity-month
+  // Count unique professionals and calculate working days breakdown
   const uniqueProfs = [...new Set(cons.map(c => c[0]))];
+  const nProfs = uniqueProfs.length;
   const totalHoli = uniqueProfs.reduce((sum, name) => sum + (HOLI[`${name}|${mo}`] || 0), 0);
+  const wdUnit = nProfs > 0 ? Math.round(wd / nProfs) : wd;
+  const wdLabel = nProfs > 1 ? `${wd} (${wdUnit} × ${nProfs})` : `${wd}`;
   let html = `<div style="margin-bottom:8px;font-weight:700;color:var(--accent);font-size:13px">${mlabel(mo)}</div>`;
   html += `<div class="tip-grid"><div class="tip-kpi"><div class="lbl">Producci\u00f3n</div><div class="val">${fmt(pr)}</div></div>`
     + `<div class="tip-kpi"><div class="lbl">Prod UF</div><div class="val">${fmtUF(puf)}</div></div>`
-    + `<div class="tip-kpi"><div class="lbl">Costo</div><div class="val" style="color:${co < 0 ? '#c0392b' : '#229954'}">${fmt(co)}</div></div>`
-    + `<div class="tip-kpi"><div class="lbl">Margen</div><div class="val">${mg}${mg !== 'N/A' ? '%' : ''}</div></div></div>`;
+    + `<div class="tip-kpi"><div class="lbl">Costo</div><div class="val" style="color:${co < 0 ? '#c0392b' : '#229954'}">${fmt(co)}</div></div></div>`;
   html += `<div class="tip-grid g5">`
     + `<div class="tip-kpi"><div class="lbl">D\u00edas Imput.</div><div class="val">${di.toFixed(1)}</div></div>`
-    + `<div class="tip-kpi"><div class="lbl">Working Days</div><div class="val">${wd}</div></div>`
-    + `<div class="tip-kpi"><div class="lbl">Holidays</div><div class="val" style="color:#8e44ad">${totalHoli.toFixed(1)}</div></div>`
+    + `<div class="tip-kpi"><div class="lbl">Working Days</div><div class="val">${wdLabel}</div></div>`
+    + `<div class="tip-kpi"><div class="lbl">Holidays</div><div class="val" style="color:#8e44ad">${totalHoli > 0 ? totalHoli.toFixed(1) : ''}</div></div>`
     + `<div class="tip-kpi"><div class="lbl">ADR</div><div class="val" style="color:var(--accent)">${fmt(adrV)}</div></div>`
     + `<div class="tip-kpi"><div class="lbl">ADC</div><div class="val" style="color:#c0392b">${fmt(adcV)}</div></div></div>`;
   if (cons.length > 0) {

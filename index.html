@@ -119,10 +119,14 @@
       <div class="card-title"><span class="ta">●</span> Historial por Consultor</div>
       <div style="margin-bottom:12px;position:relative">
         <label style="font-size:12px;color:var(--text3);font-weight:600">Buscar Consultor</label>
-        <div class="search-wrap" style="margin-top:4px;max-width:360px">
-          <input type="search" id="consultorInput" placeholder="Escribe nombre del consultor…" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" data-1p-ignore data-lpignore="true" data-form-type="other">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8896a6" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        </div>
+        <form autocomplete="off" onsubmit="return false" style="margin:0;padding:0;border:0">
+          <input type="text" name="fake_user" style="display:none" tabindex="-1" aria-hidden="true">
+          <input type="password" name="fake_pass" style="display:none" tabindex="-1" aria-hidden="true">
+          <div class="search-wrap" style="margin-top:4px;max-width:360px">
+            <input type="search" id="consultorInput" name="consultor_search" placeholder="Escribe nombre del consultor…" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" data-1p-ignore data-lpignore="true" data-form-type="other">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8896a6" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          </div>
+        </form>
         <div id="consultorDropdown" class="consultor-dropdown"></div>
       </div>
       <div class="table-wrap" id="consultorTableWrap" style="max-height:700px"></div>

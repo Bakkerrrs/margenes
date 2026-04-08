@@ -532,7 +532,7 @@ function refreshDetalle() {
 
   rows.forEach(row => {
     h += '<tr>';
-    h += `<td class="fixed-col col0 td-mono" style="font-size:10px"><a href="#" class="codigo-link" onclick="fillSearch('${row.as}');return false">${row.as}</a></td>`;
+    h += `<td class="fixed-col col0 td-mono" style="font-size:10px">${row.as}</td>`;
     h += `<td class="fixed-col col1">${row.ad}</td>`;
     h += `<td class="fixed-col col2">${row.cu}</td>`;
     h += `<td class="fixed-col col3">${row.bu}</td>`;
@@ -692,7 +692,7 @@ function refreshConsultor(name) {
     const mgPct = hasProd ? (r.margin * 100).toFixed(1) : 'N/A';
     const mgColor = !hasProd ? '#999' : r.margin >= 0.34 ? '#02931C' : r.margin >= 0.30 ? '#5a6600' : r.margin >= 0.28 ? '#b45309' : r.margin >= 0.25 ? '#D64550' : '#1a1a1a';
     h += `<tr${band}>`;
-    h += `<td class="td-mono" style="font-size:11px">${r.act}</td>`;
+    h += `<td class="td-mono" style="font-size:11px">${r.act.startsWith('SGC') ? `<a href="#" class="codigo-link" onclick="fillSearch('${r.act}');return false">${r.act}</a>` : r.act}</td>`;
     h += `<td class="td-name">${r.desc}</td>`;
     h += `<td class="td-mono" style="font-size:11px">${mlabel(r.month)}</td>`;
     h += `<td class="td-name" style="font-size:11px">${r.adv}</td>`;

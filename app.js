@@ -217,6 +217,14 @@ function initUI() {
   onFYChange();
 }
 
+function fillSearch(code) {
+  const input = document.getElementById('filterSearch');
+  input.value = code;
+  switchTab('detalle');
+  refresh();
+  refreshDetalle();
+}
+
 // ─── Filters & helpers ───
 
 function onFYChange() {
@@ -524,7 +532,7 @@ function refreshDetalle() {
 
   rows.forEach(row => {
     h += '<tr>';
-    h += `<td class="fixed-col col0 td-mono" style="font-size:10px">${row.as}</td>`;
+    h += `<td class="fixed-col col0 td-mono" style="font-size:10px"><a href="#" class="codigo-link" onclick="fillSearch('${row.as}');return false">${row.as}</a></td>`;
     h += `<td class="fixed-col col1">${row.ad}</td>`;
     h += `<td class="fixed-col col2">${row.cu}</td>`;
     h += `<td class="fixed-col col3">${row.bu}</td>`;
@@ -578,7 +586,7 @@ function initConsultorTab() {
   inp.addEventListener('input', () => {
     const q = inp.value.trim().toLowerCase();
     consultorActiveIdx = -1;
-    if (!q) { dd.classList.remove('open'); dd.innerHTML = ''; return; }
+    if (!q) { dd.classList.remove('open'); dd.innerHTML = ''; inp.setAttribute('aria-expanded','false'); return; }
     const matches = consultorNames.filter(n => n.toLowerCase().includes(q)).slice(0, 30);
     if (matches.length === 0) {
       dd.innerHTML = '<div class="cd-empty">Sin resultados</div>';
@@ -586,6 +594,7 @@ function initConsultorTab() {
       dd.innerHTML = matches.map((n, i) => `<div class="cd-item" data-idx="${i}" onmousedown="selectConsultor('${n.replace(/'/g, "\\'")}')">${highlightMatch(n, q)}</div>`).join('');
     }
     dd.classList.add('open');
+    inp.setAttribute('aria-expanded','true');
   });
 
   inp.addEventListener('keydown', (e) => {
@@ -604,10 +613,10 @@ function initConsultorTab() {
         items[0].onmousedown();
       } else { tryExactMatch(); }
     }
-    else if (e.key === 'Escape') { dd.classList.remove('open'); }
+    else if (e.key === 'Escape') { dd.classList.remove('open'); inp.setAttribute('aria-expanded','false'); }
   });
 
-  inp.addEventListener('blur', () => { setTimeout(() => dd.classList.remove('open'), 150); });
+  inp.addEventListener('blur', () => { setTimeout(() => { dd.classList.remove('open'); inp.setAttribute('aria-expanded','false'); }, 150); });
   inp.addEventListener('focus', () => { if (inp.value.trim() && dd.innerHTML) dd.classList.add('open'); });
 }
 

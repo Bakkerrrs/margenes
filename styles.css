@@ -138,6 +138,9 @@ tr:hover td{background:#f4f7fb}
 
 tr.month-band td{background:var(--surface2)}
 
+.codigo-link{color:var(--accent);text-decoration:none;cursor:pointer}
+.codigo-link:hover{text-decoration:underline}
+
 .consultor-dropdown{display:none;position:absolute;left:0;top:100%;z-index:50;background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.10);max-height:220px;overflow-y:auto;width:360px;margin-top:2px}
 .consultor-dropdown.open{display:block}
 .consultor-dropdown .cd-item{padding:8px 14px;font-size:13px;cursor:pointer;border-bottom:1px solid var(--border2)}

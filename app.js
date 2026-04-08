@@ -217,6 +217,14 @@ function initUI() {
   onFYChange();
 }
 
+function fillSearch(code) {
+  const input = document.getElementById('filterSearch');
+  input.value = code;
+  switchTab('detalle');
+  refresh();
+  refreshDetalle();
+}
+
 // ─── Filters & helpers ───
 
 function onFYChange() {
@@ -578,7 +586,7 @@ function initConsultorTab() {
   inp.addEventListener('input', () => {
     const q = inp.value.trim().toLowerCase();
     consultorActiveIdx = -1;
-    if (!q) { dd.classList.remove('open'); dd.innerHTML = ''; return; }
+    if (!q) { dd.classList.remove('open'); dd.innerHTML = ''; inp.setAttribute('aria-expanded','false'); return; }
     const matches = consultorNames.filter(n => n.toLowerCase().includes(q)).slice(0, 30);
     if (matches.length === 0) {
       dd.innerHTML = '<div class="cd-empty">Sin resultados</div>';
@@ -586,6 +594,7 @@ function initConsultorTab() {
       dd.innerHTML = matches.map((n, i) => `<div class="cd-item" data-idx="${i}" onmousedown="selectConsultor('${n.replace(/'/g, "\\'")}')">${highlightMatch(n, q)}</div>`).join('');
     }
     dd.classList.add('open');
+    inp.setAttribute('aria-expanded','true');
   });
 
   inp.addEventListener('keydown', (e) => {
@@ -604,10 +613,10 @@ function initConsultorTab() {
         items[0].onmousedown();
       } else { tryExactMatch(); }
     }
-    else if (e.key === 'Escape') { dd.classList.remove('open'); }
+    else if (e.key === 'Escape') { dd.classList.remove('open'); inp.setAttribute('aria-expanded','false'); }
   });
 
-  inp.addEventListener('blur', () => { setTimeout(() => dd.classList.remove('open'), 150); });
+  inp.addEventListener('blur', () => { setTimeout(() => { dd.classList.remove('open'); inp.setAttribute('aria-expanded','false'); }, 150); });
   inp.addEventListener('focus', () => { if (inp.value.trim() && dd.innerHTML) dd.classList.add('open'); });
 }
 
@@ -683,7 +692,7 @@ function refreshConsultor(name) {
     const mgPct = hasProd ? (r.margin * 100).toFixed(1) : 'N/A';
     const mgColor = !hasProd ? '#999' : r.margin >= 0.34 ? '#02931C' : r.margin >= 0.30 ? '#5a6600' : r.margin >= 0.28 ? '#b45309' : r.margin >= 0.25 ? '#D64550' : '#1a1a1a';
     h += `<tr${band}>`;
-    h += `<td class="td-mono" style="font-size:11px">${r.act}</td>`;
+    h += `<td class="td-mono" style="font-size:11px">${r.act.startsWith('SGC') ? `<a href="#" class="codigo-link" onclick="fillSearch('${r.act}');return false">${r.act}</a>` : r.act}</td>`;
     h += `<td class="td-name">${r.desc}</td>`;
     h += `<td class="td-mono" style="font-size:11px">${mlabel(r.month)}</td>`;
     h += `<td class="td-name" style="font-size:11px">${r.adv}</td>`;

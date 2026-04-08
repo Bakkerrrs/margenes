@@ -58,10 +58,14 @@
 <div class="filters-bar">
   <div class="filter-group" style="flex-grow:1;max-width:300px">
     <label>Buscar Actividad</label>
-    <div class="search-wrap">
-      <input type="text" id="filterSearch" placeholder="Código o descripción…">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8896a6" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-    </div>
+    <form autocomplete="off" onsubmit="return false" style="margin:0;padding:0;border:0;flex-grow:1">
+      <input type="text" name="fake_user" style="display:none" tabindex="-1" aria-hidden="true">
+      <input type="password" name="fake_pass" style="display:none" tabindex="-1" aria-hidden="true">
+      <div class="search-wrap">
+        <input type="search" id="filterSearch" name="activity_search" placeholder="Código o descripción…" autocomplete="off" data-1p-ignore data-lpignore="true" data-form-type="other">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8896a6" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      </div>
+    </form>
   </div>
   <div class="filter-group"><label>Año Fiscal</label><select id="filterFY"></select></div>
   <div class="filter-group"><label>BU</label><select id="filterBU"><option value="">Todas</option></select></div>

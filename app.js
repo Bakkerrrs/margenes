@@ -756,6 +756,13 @@ function calcRemoveConsultor(name) {
   calcRender();
 }
 
+function calcExportPDF() {
+  document.body.classList.add('calc-printing');
+  const cleanup = () => { document.body.classList.remove('calc-printing'); window.removeEventListener('afterprint', cleanup); };
+  window.addEventListener('afterprint', cleanup);
+  setTimeout(() => window.print(), 50);
+}
+
 function calcStepTarifa(delta) {
   const inp = document.getElementById('calcTarifaUF');
   const cur = parseFloat(inp.value) || 0;

@@ -803,14 +803,17 @@ function calcRender() {
   // Result KPIs
   const totalCosto = calcSelected.reduce((s, n) => s + calcConsultorADC(n) * CALC_DAYS, 0);
   const margen = tarifaPesos - totalCosto;
-  const margenPct = tarifaPesos > 0 ? (margen / tarifaPesos) * 100 : 0;
-  const mgColor = margenPct >= 30 ? '#02931C' : margenPct >= 25 ? '#E66C37' : '#D64550';
+  const margenRatio = tarifaPesos > 0 ? margen / tarifaPesos : 0;
+  const margenPct = margenRatio * 100;
+  const hasMargen = tarifaPesos > 0;
+  const mbCls = hasMargen ? RANGES[gri(margenRatio)].cls : '';
+  const mbColor = hasMargen ? RANGES[gri(margenRatio)].color : 'var(--text)';
 
   document.getElementById('calcResultRow').innerHTML = `
     <div class="kpi"><div class="kpi-label">Tarifa en Pesos</div><div class="kpi-value">${tarifaPesos > 0 ? fmtFull(tarifaPesos) : '-'}</div></div>
     <div class="kpi"><div class="kpi-label">Total Costos</div><div class="kpi-value" style="color:#c0392b">${calcSelected.length ? fmtFull(totalCosto) : '-'}</div></div>
-    <div class="kpi"><div class="kpi-label">Margen</div><div class="kpi-value" style="color:${tarifaPesos > 0 ? mgColor : 'var(--text)'}">${tarifaPesos > 0 ? fmtFull(margen) : '-'}</div></div>
-    <div class="kpi"><div class="kpi-label">Margen %</div><div class="kpi-value" style="color:${tarifaPesos > 0 ? mgColor : 'var(--text)'}">${tarifaPesos > 0 ? margenPct.toFixed(1) + '%' : '-'}</div></div>`;
+    <div class="kpi"><div class="kpi-label">Margen</div><div class="kpi-value" style="color:${mbColor}">${hasMargen ? fmtFull(margen) : '-'}</div></div>
+    <div class="kpi"><div class="kpi-label">Margen %</div><div class="kpi-value">${hasMargen ? `<span class="margin-badge ${mbCls}" style="font-size:18px;padding:4px 12px">${margenPct.toFixed(1)}%</span>` : '-'}</div></div>`;
 }
 
 function initCalculadoraTab() {

@@ -91,6 +91,7 @@
     <div class="tab active" onclick="switchTab('resumen')">Resumen</div>
     <div class="tab" onclick="switchTab('detalle')">Detalle</div>
     <div class="tab" onclick="switchTab('consultor')">Consultor</div>
+    <div class="tab" onclick="switchTab('calculadora')">Calculadora</div>
     <div class="tab" onclick="switchTab('importar')">Importar Excel</div>
   </div>
   <div id="tabResumen">
@@ -134,6 +135,59 @@
         <div id="consultorDropdown" class="consultor-dropdown"></div>
       </div>
       <div class="table-wrap" id="consultorTableWrap" style="max-height:700px"></div>
+    </div>
+  </div>
+
+  <div id="tabCalculadora" style="display:none">
+    <div class="card">
+      <div class="card-title" style="justify-content:space-between">
+        <span><span class="ta">●</span> Calculadora de Margen</span>
+        <button type="button" class="calc-export-btn calc-no-print" onclick="calcExportPDF()" title="Exportar a PDF">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:6px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Exportar PDF
+        </button>
+      </div>
+
+      <div class="calc-tarifa-row">
+        <div class="filter-group">
+          <label>Tarifa UF</label>
+          <form autocomplete="off" onsubmit="return false" style="margin:0;padding:0;border:0">
+            <input type="text" name="fake_user" style="display:none" tabindex="-1" aria-hidden="true">
+            <input type="password" name="fake_pass" style="display:none" tabindex="-1" aria-hidden="true">
+            <div class="calc-stepper">
+              <button type="button" class="calc-step-btn" onclick="calcStepTarifa(-1)" aria-label="Restar 1">−</button>
+              <input type="number" id="calcTarifaUF" name="calc_tarifa_uf" class="calc-input calc-stepper-input" placeholder="0" step="1" min="0" autocomplete="off" data-1p-ignore data-lpignore="true" data-form-type="other">
+              <button type="button" class="calc-step-btn" onclick="calcStepTarifa(1)" aria-label="Sumar 1">+</button>
+            </div>
+          </form>
+        </div>
+        <div class="filter-group">
+          <label>Mes</label>
+          <select id="calcMonth"></select>
+        </div>
+        <div class="filter-group">
+          <label>Tarifa en Pesos</label>
+          <div id="calcTarifaPesos" class="calc-readout">-</div>
+          <div id="calcUFRate" class="calc-readout-sub">UF del mes: -</div>
+        </div>
+      </div>
+
+      <div class="calc-no-print" style="margin-top:18px;margin-bottom:8px;position:relative">
+        <label style="font-size:12px;color:var(--text3);font-weight:600">Agregar Consultor</label>
+        <form autocomplete="off" onsubmit="return false" style="margin:0;padding:0;border:0">
+          <input type="text" name="fake_user" style="display:none" tabindex="-1" aria-hidden="true">
+          <input type="password" name="fake_pass" style="display:none" tabindex="-1" aria-hidden="true">
+          <div class="search-wrap" style="margin-top:4px;max-width:360px">
+            <input type="search" id="calcConsultorInput" name="calc_consultor_search" placeholder="Escribe nombre del consultor…" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" data-1p-ignore data-lpignore="true" data-form-type="other">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8896a6" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          </div>
+        </form>
+        <div id="calcConsultorDropdown" class="consultor-dropdown"></div>
+      </div>
+
+      <div class="table-wrap" id="calcSelectedWrap" style="margin-top:8px"></div>
+
+      <div class="kpi-row" id="calcResultRow" style="grid-template-columns:repeat(4,1fr);margin-top:18px"></div>
     </div>
   </div>
 

@@ -290,6 +290,7 @@ function flt(data) {
 
 function gri(mg) { for (let i = RANGES.length - 1; i >= 0; i--) { if (mg >= RANGES[i].lo) return i; } return 0; }
 function fmt(n) { if (n == null || isNaN(n)) return '-'; const a = Math.abs(n), s = n < 0 ? '-' : ''; if (a >= 1e6) return s + '$' + (a / 1e6).toFixed(1) + 'M'; if (a >= 1e3) return s + '$' + Math.round(a / 1e3) + 'K'; return s + '$' + Math.round(a); }
+function fmtFull(n) { if (n == null || isNaN(n)) return '-'; const s = n < 0 ? '-' : ''; return s + '$' + Math.round(Math.abs(n)).toLocaleString('es-CL'); }
 function fmtUF(n) { if (n == null || isNaN(n) || n === 0) return '-'; const a = Math.abs(n), s = n < 0 ? '-' : ''; if (a >= 1e6) return s + (a / 1e6).toFixed(1) + 'M UF'; if (a >= 1e3) return s + (a / 1e3).toFixed(1) + 'K UF'; return s + a.toFixed(1) + ' UF'; }
 
 // ─── Main refresh ───
@@ -309,12 +310,12 @@ function refresh() {
 
   document.getElementById('kpiRow').innerHTML = `
     <div class="kpi"><div class="kpi-label">Actividades</div><div class="kpi-value">${tA}</div></div>
-    <div class="kpi"><div class="kpi-label">Producci\u00f3n Total</div><div class="kpi-value">${fmt(tP)}</div></div>
+    <div class="kpi"><div class="kpi-label">Producci\u00f3n Total</div><div class="kpi-value">${fmtFull(tP)}</div></div>
     <div class="kpi"><div class="kpi-label">Prod UF</div><div class="kpi-value">${fmtUF(tPUF)}</div></div>
     <div class="kpi"><div class="kpi-label">Margen Ponderado</div><div class="kpi-value" style="color:${wM >= 30 ? '#02931C' : wM >= 25 ? '#E66C37' : '#D64550'}">${wM.toFixed(1)}%</div></div>
     <div class="kpi"><div class="kpi-label">Facturaci\u00f3n Total</div><div class="kpi-value">${fmt(tB)}</div></div>
-    <div class="kpi"><div class="kpi-label">ADR <span style="font-weight:400;font-size:9px;color:var(--text3)">(Prod/D\u00eda)</span></div><div class="kpi-value" style="color:var(--accent)">${fmt(adr)}</div></div>
-    <div class="kpi"><div class="kpi-label">ADC <span style="font-weight:400;font-size:9px;color:var(--text3)">(Costo/D\u00eda)</span></div><div class="kpi-value" style="color:#c0392b">${fmt(adc)}</div></div>`;
+    <div class="kpi"><div class="kpi-label">ADR <span style="font-weight:400;font-size:9px;color:var(--text3)">(Prod/D\u00eda)</span></div><div class="kpi-value" style="color:var(--accent)">${fmtFull(adr)}</div></div>
+    <div class="kpi"><div class="kpi-label">ADC <span style="font-weight:400;font-size:9px;color:var(--text3)">(Costo/D\u00eda)</span></div><div class="kpi-value" style="color:#c0392b">${fmtFull(adc)}</div></div>`;
 
   const sd = {}; months.forEach(m => { sd[m] = new Array(RANGES.length).fill(0); });
   fd.forEach(a => { const ri = gri(a[8]); if (sd[a[0]]) sd[a[0]][ri]++; });
@@ -444,9 +445,9 @@ function renderTable(md, month) {
       + `<td style="text-align:center;color:var(--accent);font-size:10px">${hasC ? '\u25B6' : ''}</td>`
       + `<td class="td-mono">${a[2]}</td><td class="td-name">${a[3]}</td><td class="td-name">${a[1]}</td>`
       + `<td>${a[5]}</td><td class="td-name">${a[10]}</td>`
-      + `<td class="td-mono" style="text-align:right">${fmt(a[6])}</td>`
+      + `<td class="td-mono" style="text-align:right">${fmtFull(a[6])}</td>`
       + `<td class="td-mono" style="text-align:right">${fmtUF(a[24])}</td>`
-      + `<td class="td-mono" style="text-align:right;color:${a[7] < 0 ? '#c0392b' : '#229954'}">${fmt(a[7])}</td>`
+      + `<td class="td-mono" style="text-align:right;color:${a[7] < 0 ? '#c0392b' : '#229954'}">${fmtFull(a[7])}</td>`
       + `<td style="text-align:right"><span class="margin-badge ${cls}">${mgPct}${hasProd ? '%' : ''}</span></td>`
       + `<td class="td-mono" style="text-align:right">${fmt(a[9])}</td></tr>`;
     if (hasC) {
@@ -476,9 +477,11 @@ function switchTab(tab) {
   document.getElementById('tabResumen').style.display = tab === 'resumen' ? '' : 'none';
   document.getElementById('tabDetalle').style.display = tab === 'detalle' ? '' : 'none';
   document.getElementById('tabConsultor').style.display = tab === 'consultor' ? '' : 'none';
+  document.getElementById('tabCalculadora').style.display = tab === 'calculadora' ? '' : 'none';
   document.getElementById('tabImportar').style.display = tab === 'importar' ? '' : 'none';
   if (tab === 'detalle') refreshDetalle();
   if (tab === 'consultor') initConsultorTab();
+  if (tab === 'calculadora') initCalculadoraTab();
 }
 
 // ─── Detalle Tab ───
@@ -698,8 +701,8 @@ function refreshConsultor(name) {
     h += `<td class="td-name" style="font-size:11px">${r.adv}</td>`;
     h += `<td class="td-name" style="font-size:11px">${r.jef}</td>`;
     h += `<td class="td-mono" style="text-align:right">${r.dias.toFixed(1)}</td>`;
-    h += `<td class="td-mono" style="text-align:right;color:${r.costo < 0 ? '#c0392b' : '#229954'}">${fmt(r.costo)}</td>`;
-    h += `<td class="td-mono" style="text-align:right">${fmt(r.prod)}</td>`;
+    h += `<td class="td-mono" style="text-align:right;color:${r.costo < 0 ? '#c0392b' : '#229954'}">${fmtFull(r.costo)}</td>`;
+    h += `<td class="td-mono" style="text-align:right">${fmtFull(r.prod)}</td>`;
     h += `<td class="td-mono" style="text-align:right">${fmtUF(r.prodUF)}</td>`;
     h += `<td style="text-align:right;color:${mgColor};font-weight:600">${mgPct}${hasProd ? '%' : ''}</td>`;
     h += '</tr>';
@@ -711,6 +714,214 @@ function refreshConsultor(name) {
 
   h += '</tbody></table>';
   wrap.innerHTML = h;
+}
+
+// ─── Calculadora Tab ───
+
+let calcInited = false;
+let calcSelected = []; // [{ name, alloc }] — alloc in percent (0-100+)
+let calcUFRates = {};  // { 'YYYY-MM': pesosPerUF }
+const CALC_DAYS = 20.75;
+
+function calcBuildUFRates() {
+  const acc = {};
+  ALL.forEach(a => {
+    const m = a[0], pr = Number(a[6]) || 0, puf = Number(a[24]) || 0;
+    if (!m || puf <= 0) return;
+    if (!acc[m]) acc[m] = { pr: 0, puf: 0 };
+    acc[m].pr += pr; acc[m].puf += puf;
+  });
+  calcUFRates = {};
+  Object.keys(acc).forEach(m => {
+    if (acc[m].puf > 0) calcUFRates[m] = acc[m].pr / acc[m].puf;
+  });
+}
+
+function calcConsultorADC(name) {
+  const rs = CONS_RAW.filter(r => (r.profesional || r.employee_name) === name);
+  let cost = 0, dias = 0;
+  rs.forEach(r => { cost += Math.abs(Number(r.costo_mensual) || 0); dias += Number(r.dias) || 0; });
+  return dias > 0 ? cost / dias : 0;
+}
+
+function calcAddConsultor(name) {
+  if (!calcSelected.some(s => s.name === name)) calcSelected.push({ name, alloc: 100 });
+  document.getElementById('calcConsultorInput').value = '';
+  document.getElementById('calcConsultorDropdown').classList.remove('open');
+  calcRender();
+}
+
+function calcRemoveConsultor(name) {
+  calcSelected = calcSelected.filter(s => s.name !== name);
+  calcRender();
+}
+
+function calcExportPDF() {
+  document.body.classList.add('calc-printing');
+  const cleanup = () => { document.body.classList.remove('calc-printing'); window.removeEventListener('afterprint', cleanup); };
+  window.addEventListener('afterprint', cleanup);
+  setTimeout(() => window.print(), 50);
+}
+
+function calcStepTarifa(delta) {
+  const inp = document.getElementById('calcTarifaUF');
+  const cur = parseFloat(inp.value) || 0;
+  const next = Math.max(0, Math.round(cur + delta));
+  inp.value = next;
+  calcRender();
+}
+
+function calcStepAlloc(i, delta) {
+  if (!calcSelected[i]) return;
+  const next = Math.max(0, Math.round((calcSelected[i].alloc || 0) + delta));
+  calcSelected[i].alloc = next;
+  const inp = document.querySelector(`[data-calc-alloc="${i}"]`);
+  if (inp) inp.value = next;
+  const adc = calcConsultorADC(calcSelected[i].name);
+  const cell = document.querySelector(`[data-calc-mensual="${i}"]`);
+  if (cell) cell.textContent = adc > 0 ? fmtFull(adc * CALC_DAYS * (next / 100)) : '-';
+  calcUpdateTotals();
+}
+
+function calcUpdateAlloc(i, val) {
+  if (!calcSelected[i]) return;
+  const v = Math.max(0, parseFloat(val) || 0);
+  calcSelected[i].alloc = v;
+  const adc = calcConsultorADC(calcSelected[i].name);
+  const mensual = adc * CALC_DAYS * (v / 100);
+  const cell = document.querySelector(`[data-calc-mensual="${i}"]`);
+  if (cell) cell.textContent = adc > 0 ? fmtFull(mensual) : '-';
+  calcUpdateTotals();
+}
+
+function calcUpdateTotals() {
+  const tarifaUF = parseFloat(document.getElementById('calcTarifaUF').value) || 0;
+  const month = document.getElementById('calcMonth').value;
+  const ufRate = calcUFRates[month] || 0;
+  const tarifaPesos = tarifaUF > 0 && ufRate > 0 ? tarifaUF * ufRate : 0;
+  const totalCosto = calcSelected.reduce((s, x) => s + calcConsultorADC(x.name) * CALC_DAYS * ((x.alloc || 0) / 100), 0);
+
+  const tot = document.getElementById('calcTotalMensual');
+  if (tot) tot.textContent = fmtFull(totalCosto);
+
+  const margen = tarifaPesos - totalCosto;
+  const margenRatio = tarifaPesos > 0 ? margen / tarifaPesos : 0;
+  const margenPct = margenRatio * 100;
+  const hasMargen = tarifaPesos > 0;
+  const mbCls = hasMargen ? RANGES[gri(margenRatio)].cls : '';
+  const mbColor = hasMargen ? RANGES[gri(margenRatio)].color : 'var(--text)';
+
+  document.getElementById('calcResultRow').innerHTML = `
+    <div class="kpi"><div class="kpi-label">Tarifa en Pesos</div><div class="kpi-value">${tarifaPesos > 0 ? fmtFull(tarifaPesos) : '-'}</div></div>
+    <div class="kpi"><div class="kpi-label">Total Costos</div><div class="kpi-value" style="color:#c0392b">${calcSelected.length ? fmtFull(totalCosto) : '-'}</div></div>
+    <div class="kpi"><div class="kpi-label">Margen</div><div class="kpi-value" style="color:${mbColor}">${hasMargen ? fmtFull(margen) : '-'}</div></div>
+    <div class="kpi"><div class="kpi-label">Margen %</div><div class="kpi-value">${hasMargen ? `<span class="margin-badge ${mbCls}" style="font-size:18px;padding:4px 12px">${margenPct.toFixed(1)}%</span>` : '-'}</div></div>`;
+}
+
+function calcRender() {
+  // Tarifa Pesos readouts
+  const tarifaUF = parseFloat(document.getElementById('calcTarifaUF').value) || 0;
+  const month = document.getElementById('calcMonth').value;
+  const ufRate = calcUFRates[month] || 0;
+  const tarifaPesos = tarifaUF > 0 && ufRate > 0 ? tarifaUF * ufRate : 0;
+  document.getElementById('calcTarifaPesos').textContent = tarifaPesos > 0 ? fmtFull(tarifaPesos) : '-';
+  document.getElementById('calcUFRate').textContent = ufRate > 0 ? `UF del mes: ${fmtFull(ufRate)}` : 'UF del mes: sin datos';
+
+  // Selected consultors table
+  const wrap = document.getElementById('calcSelectedWrap');
+  if (calcSelected.length === 0) {
+    wrap.innerHTML = '<p style="color:var(--text3);padding:14px;text-align:center;font-size:12px">Agrega consultores para calcular el costo total</p>';
+  } else {
+    let h = '<table><thead><tr>'
+      + '<th style="text-align:left">Consultor</th>'
+      + '<th style="text-align:right">Costo Diario (ADC)</th>'
+      + '<th style="text-align:center;width:160px">% Asignación</th>'
+      + `<th style="text-align:right">Costo Mensual (× ${CALC_DAYS})</th>`
+      + '<th style="width:60px"></th>'
+      + '</tr></thead><tbody>';
+    calcSelected.forEach((s, i) => {
+      const adc = calcConsultorADC(s.name);
+      const mensual = adc * CALC_DAYS * ((s.alloc || 0) / 100);
+      const safe = s.name.replace(/'/g, "\\'");
+      h += `<tr>`
+        + `<td class="td-name">${s.name}</td>`
+        + `<td class="td-mono" style="text-align:right">${adc > 0 ? fmtFull(adc) : '<span style="color:var(--text3)">sin datos</span>'}</td>`
+        + `<td style="text-align:center"><div class="calc-stepper calc-stepper-sm">`
+        + `<button type="button" class="calc-step-btn" onclick="calcStepAlloc(${i}, -1)" aria-label="Restar 1">−</button>`
+        + `<input type="number" class="calc-input calc-stepper-input" min="0" step="1" value="${s.alloc}" data-calc-alloc="${i}" oninput="calcUpdateAlloc(${i}, this.value)" autocomplete="off" data-1p-ignore data-lpignore="true" data-form-type="other">`
+        + `<button type="button" class="calc-step-btn" onclick="calcStepAlloc(${i}, 1)" aria-label="Sumar 1">+</button>`
+        + `</div></td>`
+        + `<td class="td-mono" style="text-align:right" data-calc-mensual="${i}">${adc > 0 ? fmtFull(mensual) : '-'}</td>`
+        + `<td style="text-align:center"><button class="calc-row-x" onclick="calcRemoveConsultor('${safe}')" title="Quitar">×</button></td>`
+        + `</tr>`;
+    });
+    h += `<tr style="font-weight:700;border-top:2px solid var(--border)">`
+      + `<td style="padding-top:8px">Total costos</td>`
+      + `<td></td><td></td>`
+      + `<td class="td-mono" style="text-align:right;padding-top:8px" id="calcTotalMensual">-</td>`
+      + `<td></td>`
+      + `</tr>`;
+    h += '</tbody></table>';
+    wrap.innerHTML = h;
+  }
+
+  calcUpdateTotals();
+}
+
+function initCalculadoraTab() {
+  if (calcInited) return;
+  calcInited = true;
+
+  calcBuildUFRates();
+
+  // Populate month selector with all months that have UF data, descending
+  const months = Object.keys(calcUFRates).sort().reverse();
+  const sel = document.getElementById('calcMonth');
+  sel.innerHTML = months.map(m => `<option value="${m}">${mlabel(m)}</option>`).join('');
+  if (months.length === 0) sel.innerHTML = '<option value="">Sin datos</option>';
+
+  // Tarifa UF + month change handlers
+  document.getElementById('calcTarifaUF').addEventListener('input', calcRender);
+  sel.addEventListener('change', calcRender);
+
+  // Consultor multi-select search (mirrors Consultor tab)
+  if (consultorNames.length === 0) {
+    consultorNames = [...new Set(CONS_RAW.map(r => r.profesional || r.employee_name).filter(Boolean))].sort();
+  }
+  const inp = document.getElementById('calcConsultorInput');
+  const dd = document.getElementById('calcConsultorDropdown');
+  let activeIdx = -1;
+
+  inp.addEventListener('input', () => {
+    const q = inp.value.trim().toLowerCase();
+    activeIdx = -1;
+    if (!q) { dd.classList.remove('open'); dd.innerHTML = ''; inp.setAttribute('aria-expanded','false'); return; }
+    const matches = consultorNames.filter(n => n.toLowerCase().includes(q) && !calcSelected.includes(n)).slice(0, 30);
+    if (matches.length === 0) {
+      dd.innerHTML = '<div class="cd-empty">Sin resultados</div>';
+    } else {
+      dd.innerHTML = matches.map((n, i) => `<div class="cd-item" data-idx="${i}" onmousedown="calcAddConsultor('${n.replace(/'/g, "\\'")}')">${highlightMatch(n, q)}</div>`).join('');
+    }
+    dd.classList.add('open');
+    inp.setAttribute('aria-expanded','true');
+  });
+
+  inp.addEventListener('keydown', (e) => {
+    const items = dd.querySelectorAll('.cd-item');
+    if (!items.length) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); activeIdx = Math.min(activeIdx + 1, items.length - 1); items.forEach((it,i)=>it.classList.toggle('active', i===activeIdx)); if (items[activeIdx]) items[activeIdx].scrollIntoView({block:'nearest'}); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); activeIdx = Math.max(activeIdx - 1, 0); items.forEach((it,i)=>it.classList.toggle('active', i===activeIdx)); if (items[activeIdx]) items[activeIdx].scrollIntoView({block:'nearest'}); }
+    else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (activeIdx >= 0 && items[activeIdx]) items[activeIdx].onmousedown();
+      else if (items.length === 1) items[0].onmousedown();
+    }
+    else if (e.key === 'Escape') { dd.classList.remove('open'); inp.setAttribute('aria-expanded','false'); }
+  });
+
+  inp.addEventListener('blur', () => { setTimeout(() => { dd.classList.remove('open'); inp.setAttribute('aria-expanded','false'); }, 150); });
+
+  calcRender();
 }
 
 // ─── Hover Tooltip ───
@@ -728,15 +939,15 @@ function showTip(ev, el) {
   const wdUnit = nProfs > 0 ? Math.round(wd / nProfs) : wd;
   const wdLabel = nProfs > 1 ? `${wd} (${wdUnit} × ${nProfs})` : `${wd}`;
   let html = `<div style="margin-bottom:8px;font-weight:700;color:var(--accent);font-size:13px">${mlabel(mo)}</div>`;
-  html += `<div class="tip-grid"><div class="tip-kpi"><div class="lbl">Producci\u00f3n</div><div class="val">${fmt(pr)}</div></div>`
+  html += `<div class="tip-grid"><div class="tip-kpi"><div class="lbl">Producci\u00f3n</div><div class="val">${fmtFull(pr)}</div></div>`
     + `<div class="tip-kpi"><div class="lbl">Prod UF</div><div class="val">${fmtUF(puf)}</div></div>`
-    + `<div class="tip-kpi"><div class="lbl">Costo</div><div class="val" style="color:${co < 0 ? '#c0392b' : '#229954'}">${fmt(co)}</div></div></div>`;
+    + `<div class="tip-kpi"><div class="lbl">Costo</div><div class="val" style="color:${co < 0 ? '#c0392b' : '#229954'}">${fmtFull(co)}</div></div></div>`;
   html += `<div class="tip-grid g5">`
     + `<div class="tip-kpi"><div class="lbl">D\u00edas Imput.</div><div class="val">${di.toFixed(1)}</div></div>`
     + `<div class="tip-kpi"><div class="lbl">Working Days</div><div class="val">${wdLabel}</div></div>`
     + `<div class="tip-kpi"><div class="lbl">Holidays</div><div class="val" style="color:#8e44ad">${totalHoli > 0 ? totalHoli.toFixed(1) : ''}</div></div>`
-    + `<div class="tip-kpi"><div class="lbl">ADR</div><div class="val" style="color:var(--accent)">${fmt(adrV)}</div></div>`
-    + `<div class="tip-kpi"><div class="lbl">ADC</div><div class="val" style="color:#c0392b">${fmt(adcV)}</div></div></div>`;
+    + `<div class="tip-kpi"><div class="lbl">ADR</div><div class="val" style="color:var(--accent)">${fmtFull(adrV)}</div></div>`
+    + `<div class="tip-kpi"><div class="lbl">ADC</div><div class="val" style="color:#c0392b">${fmtFull(adcV)}</div></div></div>`;
   if (cons.length > 0) {
     html += `<div style="border-top:1px solid var(--border2);padding-top:6px;margin-top:2px">`;
     html += `<div style="font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:var(--text3);margin-bottom:4px;font-weight:600">Profesionales (${cons.length})</div>`;

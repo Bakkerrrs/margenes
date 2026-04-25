@@ -477,9 +477,11 @@ function switchTab(tab) {
   document.getElementById('tabResumen').style.display = tab === 'resumen' ? '' : 'none';
   document.getElementById('tabDetalle').style.display = tab === 'detalle' ? '' : 'none';
   document.getElementById('tabConsultor').style.display = tab === 'consultor' ? '' : 'none';
+  document.getElementById('tabCalculadora').style.display = tab === 'calculadora' ? '' : 'none';
   document.getElementById('tabImportar').style.display = tab === 'importar' ? '' : 'none';
   if (tab === 'detalle') refreshDetalle();
   if (tab === 'consultor') initConsultorTab();
+  if (tab === 'calculadora') initCalculadoraTab();
 }
 
 // ─── Detalle Tab ───
@@ -712,6 +714,159 @@ function refreshConsultor(name) {
 
   h += '</tbody></table>';
   wrap.innerHTML = h;
+}
+
+// ─── Calculadora Tab ───
+
+let calcInited = false;
+let calcSelected = []; // array of consultant names
+let calcUFRates = {};  // { 'YYYY-MM': pesosPerUF }
+const CALC_DAYS = 20.75;
+
+function calcBuildUFRates() {
+  const acc = {};
+  ALL.forEach(a => {
+    const m = a[0], pr = Number(a[6]) || 0, puf = Number(a[24]) || 0;
+    if (!m || puf <= 0) return;
+    if (!acc[m]) acc[m] = { pr: 0, puf: 0 };
+    acc[m].pr += pr; acc[m].puf += puf;
+  });
+  calcUFRates = {};
+  Object.keys(acc).forEach(m => {
+    if (acc[m].puf > 0) calcUFRates[m] = acc[m].pr / acc[m].puf;
+  });
+}
+
+function calcConsultorADC(name) {
+  const rs = CONS_RAW.filter(r => (r.profesional || r.employee_name) === name);
+  let cost = 0, dias = 0;
+  rs.forEach(r => { cost += Math.abs(Number(r.costo_mensual) || 0); dias += Number(r.dias) || 0; });
+  return dias > 0 ? cost / dias : 0;
+}
+
+function calcAddConsultor(name) {
+  if (!calcSelected.includes(name)) calcSelected.push(name);
+  document.getElementById('calcConsultorInput').value = '';
+  document.getElementById('calcConsultorDropdown').classList.remove('open');
+  calcRender();
+}
+
+function calcRemoveConsultor(name) {
+  calcSelected = calcSelected.filter(n => n !== name);
+  calcRender();
+}
+
+function calcRender() {
+  // Tarifa Pesos
+  const tarifaUF = parseFloat(document.getElementById('calcTarifaUF').value) || 0;
+  const month = document.getElementById('calcMonth').value;
+  const ufRate = calcUFRates[month] || 0;
+  const tarifaPesos = tarifaUF > 0 && ufRate > 0 ? tarifaUF * ufRate : 0;
+
+  document.getElementById('calcTarifaPesos').textContent = tarifaPesos > 0 ? fmtFull(tarifaPesos) : '-';
+  document.getElementById('calcUFRate').textContent = ufRate > 0 ? `UF del mes: ${fmtFull(ufRate)}` : 'UF del mes: sin datos';
+
+  // Selected consultors table
+  const wrap = document.getElementById('calcSelectedWrap');
+  if (calcSelected.length === 0) {
+    wrap.innerHTML = '<p style="color:var(--text3);padding:14px;text-align:center;font-size:12px">Agrega consultores para calcular el costo total</p>';
+  } else {
+    let totalCosto = 0;
+    let h = '<table><thead><tr>'
+      + '<th style="text-align:left">Consultor</th>'
+      + `<th style="text-align:right">Costo Diario (ADC)</th>`
+      + `<th style="text-align:right">Costo Mensual (× ${CALC_DAYS})</th>`
+      + '<th style="width:60px"></th>'
+      + '</tr></thead><tbody>';
+    calcSelected.forEach(name => {
+      const adc = calcConsultorADC(name);
+      const mensual = adc * CALC_DAYS;
+      totalCosto += mensual;
+      const safe = name.replace(/'/g, "\\'");
+      h += `<tr>`
+        + `<td class="td-name">${name}</td>`
+        + `<td class="td-mono" style="text-align:right">${adc > 0 ? fmtFull(adc) : '<span style="color:var(--text3)">sin datos</span>'}</td>`
+        + `<td class="td-mono" style="text-align:right">${adc > 0 ? fmtFull(mensual) : '-'}</td>`
+        + `<td style="text-align:center"><button class="calc-row-x" onclick="calcRemoveConsultor('${safe}')" title="Quitar">×</button></td>`
+        + `</tr>`;
+    });
+    h += `<tr style="font-weight:700;border-top:2px solid var(--border)">`
+      + `<td style="padding-top:8px">Total costos</td>`
+      + `<td></td>`
+      + `<td class="td-mono" style="text-align:right;padding-top:8px">${fmtFull(totalCosto)}</td>`
+      + `<td></td>`
+      + `</tr>`;
+    h += '</tbody></table>';
+    wrap.innerHTML = h;
+  }
+
+  // Result KPIs
+  const totalCosto = calcSelected.reduce((s, n) => s + calcConsultorADC(n) * CALC_DAYS, 0);
+  const margen = tarifaPesos - totalCosto;
+  const margenPct = tarifaPesos > 0 ? (margen / tarifaPesos) * 100 : 0;
+  const mgColor = margenPct >= 30 ? '#02931C' : margenPct >= 25 ? '#E66C37' : '#D64550';
+
+  document.getElementById('calcResultRow').innerHTML = `
+    <div class="kpi"><div class="kpi-label">Tarifa en Pesos</div><div class="kpi-value">${tarifaPesos > 0 ? fmtFull(tarifaPesos) : '-'}</div></div>
+    <div class="kpi"><div class="kpi-label">Total Costos</div><div class="kpi-value" style="color:#c0392b">${calcSelected.length ? fmtFull(totalCosto) : '-'}</div></div>
+    <div class="kpi"><div class="kpi-label">Margen</div><div class="kpi-value" style="color:${tarifaPesos > 0 ? mgColor : 'var(--text)'}">${tarifaPesos > 0 ? fmtFull(margen) : '-'}</div></div>
+    <div class="kpi"><div class="kpi-label">Margen %</div><div class="kpi-value" style="color:${tarifaPesos > 0 ? mgColor : 'var(--text)'}">${tarifaPesos > 0 ? margenPct.toFixed(1) + '%' : '-'}</div></div>`;
+}
+
+function initCalculadoraTab() {
+  if (calcInited) return;
+  calcInited = true;
+
+  calcBuildUFRates();
+
+  // Populate month selector with all months that have UF data, descending
+  const months = Object.keys(calcUFRates).sort().reverse();
+  const sel = document.getElementById('calcMonth');
+  sel.innerHTML = months.map(m => `<option value="${m}">${mlabel(m)}</option>`).join('');
+  if (months.length === 0) sel.innerHTML = '<option value="">Sin datos</option>';
+
+  // Tarifa UF + month change handlers
+  document.getElementById('calcTarifaUF').addEventListener('input', calcRender);
+  sel.addEventListener('change', calcRender);
+
+  // Consultor multi-select search (mirrors Consultor tab)
+  if (consultorNames.length === 0) {
+    consultorNames = [...new Set(CONS_RAW.map(r => r.profesional || r.employee_name).filter(Boolean))].sort();
+  }
+  const inp = document.getElementById('calcConsultorInput');
+  const dd = document.getElementById('calcConsultorDropdown');
+  let activeIdx = -1;
+
+  inp.addEventListener('input', () => {
+    const q = inp.value.trim().toLowerCase();
+    activeIdx = -1;
+    if (!q) { dd.classList.remove('open'); dd.innerHTML = ''; inp.setAttribute('aria-expanded','false'); return; }
+    const matches = consultorNames.filter(n => n.toLowerCase().includes(q) && !calcSelected.includes(n)).slice(0, 30);
+    if (matches.length === 0) {
+      dd.innerHTML = '<div class="cd-empty">Sin resultados</div>';
+    } else {
+      dd.innerHTML = matches.map((n, i) => `<div class="cd-item" data-idx="${i}" onmousedown="calcAddConsultor('${n.replace(/'/g, "\\'")}')">${highlightMatch(n, q)}</div>`).join('');
+    }
+    dd.classList.add('open');
+    inp.setAttribute('aria-expanded','true');
+  });
+
+  inp.addEventListener('keydown', (e) => {
+    const items = dd.querySelectorAll('.cd-item');
+    if (!items.length) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); activeIdx = Math.min(activeIdx + 1, items.length - 1); items.forEach((it,i)=>it.classList.toggle('active', i===activeIdx)); if (items[activeIdx]) items[activeIdx].scrollIntoView({block:'nearest'}); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); activeIdx = Math.max(activeIdx - 1, 0); items.forEach((it,i)=>it.classList.toggle('active', i===activeIdx)); if (items[activeIdx]) items[activeIdx].scrollIntoView({block:'nearest'}); }
+    else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (activeIdx >= 0 && items[activeIdx]) items[activeIdx].onmousedown();
+      else if (items.length === 1) items[0].onmousedown();
+    }
+    else if (e.key === 'Escape') { dd.classList.remove('open'); inp.setAttribute('aria-expanded','false'); }
+  });
+
+  inp.addEventListener('blur', () => { setTimeout(() => { dd.classList.remove('open'); inp.setAttribute('aria-expanded','false'); }, 150); });
+
+  calcRender();
 }
 
 // ─── Hover Tooltip ───

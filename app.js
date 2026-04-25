@@ -819,7 +819,7 @@ function calcRender() {
       h += `<tr>`
         + `<td class="td-name">${s.name}</td>`
         + `<td class="td-mono" style="text-align:right">${adc > 0 ? fmtFull(adc) : '<span style="color:var(--text3)">sin datos</span>'}</td>`
-        + `<td style="text-align:center"><input type="number" class="calc-input calc-alloc" min="0" step="1" value="${s.alloc}" oninput="calcUpdateAlloc(${i}, this.value)" style="width:70px;text-align:right"> %</td>`
+        + `<td style="text-align:center"><input type="number" class="calc-input calc-alloc" min="0" step="1" value="${s.alloc}" oninput="calcUpdateAlloc(${i}, this.value)" autocomplete="off" data-1p-ignore data-lpignore="true" data-form-type="other" style="width:70px;text-align:right"> %</td>`
         + `<td class="td-mono" style="text-align:right" data-calc-mensual="${i}">${adc > 0 ? fmtFull(mensual) : '-'}</td>`
         + `<td style="text-align:center"><button class="calc-row-x" onclick="calcRemoveConsultor('${safe}')" title="Quitar">×</button></td>`
         + `</tr>`;

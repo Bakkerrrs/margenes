@@ -756,6 +756,14 @@ function calcRemoveConsultor(name) {
   calcRender();
 }
 
+function calcStepTarifa(delta) {
+  const inp = document.getElementById('calcTarifaUF');
+  const cur = parseFloat(inp.value) || 0;
+  const next = Math.max(0, Math.round(cur + delta));
+  inp.value = next;
+  calcRender();
+}
+
 function calcUpdateAlloc(i, val) {
   if (!calcSelected[i]) return;
   const v = Math.max(0, parseFloat(val) || 0);

@@ -148,7 +148,11 @@
           <form autocomplete="off" onsubmit="return false" style="margin:0;padding:0;border:0">
             <input type="text" name="fake_user" style="display:none" tabindex="-1" aria-hidden="true">
             <input type="password" name="fake_pass" style="display:none" tabindex="-1" aria-hidden="true">
-            <input type="number" id="calcTarifaUF" name="calc_tarifa_uf" class="calc-input" placeholder="0.00" step="0.01" min="0" autocomplete="off" data-1p-ignore data-lpignore="true" data-form-type="other">
+            <div class="calc-stepper">
+              <button type="button" class="calc-step-btn" onclick="calcStepTarifa(-1)" aria-label="Restar 1">−</button>
+              <input type="number" id="calcTarifaUF" name="calc_tarifa_uf" class="calc-input calc-stepper-input" placeholder="0" step="1" min="0" autocomplete="off" data-1p-ignore data-lpignore="true" data-form-type="other">
+              <button type="button" class="calc-step-btn" onclick="calcStepTarifa(1)" aria-label="Sumar 1">+</button>
+            </div>
           </form>
         </div>
         <div class="filter-group">

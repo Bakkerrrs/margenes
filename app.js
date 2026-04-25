@@ -290,6 +290,7 @@ function flt(data) {
 
 function gri(mg) { for (let i = RANGES.length - 1; i >= 0; i--) { if (mg >= RANGES[i].lo) return i; } return 0; }
 function fmt(n) { if (n == null || isNaN(n)) return '-'; const a = Math.abs(n), s = n < 0 ? '-' : ''; if (a >= 1e6) return s + '$' + (a / 1e6).toFixed(1) + 'M'; if (a >= 1e3) return s + '$' + Math.round(a / 1e3) + 'K'; return s + '$' + Math.round(a); }
+function fmtFull(n) { if (n == null || isNaN(n)) return '-'; const s = n < 0 ? '-' : ''; return s + '$' + Math.round(Math.abs(n)).toLocaleString('es-CL'); }
 function fmtUF(n) { if (n == null || isNaN(n) || n === 0) return '-'; const a = Math.abs(n), s = n < 0 ? '-' : ''; if (a >= 1e6) return s + (a / 1e6).toFixed(1) + 'M UF'; if (a >= 1e3) return s + (a / 1e3).toFixed(1) + 'K UF'; return s + a.toFixed(1) + ' UF'; }
 
 // ─── Main refresh ───
@@ -309,12 +310,12 @@ function refresh() {
 
   document.getElementById('kpiRow').innerHTML = `
     <div class="kpi"><div class="kpi-label">Actividades</div><div class="kpi-value">${tA}</div></div>
-    <div class="kpi"><div class="kpi-label">Producci\u00f3n Total</div><div class="kpi-value">${fmt(tP)}</div></div>
+    <div class="kpi"><div class="kpi-label">Producci\u00f3n Total</div><div class="kpi-value">${fmtFull(tP)}</div></div>
     <div class="kpi"><div class="kpi-label">Prod UF</div><div class="kpi-value">${fmtUF(tPUF)}</div></div>
     <div class="kpi"><div class="kpi-label">Margen Ponderado</div><div class="kpi-value" style="color:${wM >= 30 ? '#02931C' : wM >= 25 ? '#E66C37' : '#D64550'}">${wM.toFixed(1)}%</div></div>
     <div class="kpi"><div class="kpi-label">Facturaci\u00f3n Total</div><div class="kpi-value">${fmt(tB)}</div></div>
-    <div class="kpi"><div class="kpi-label">ADR <span style="font-weight:400;font-size:9px;color:var(--text3)">(Prod/D\u00eda)</span></div><div class="kpi-value" style="color:var(--accent)">${fmt(adr)}</div></div>
-    <div class="kpi"><div class="kpi-label">ADC <span style="font-weight:400;font-size:9px;color:var(--text3)">(Costo/D\u00eda)</span></div><div class="kpi-value" style="color:#c0392b">${fmt(adc)}</div></div>`;
+    <div class="kpi"><div class="kpi-label">ADR <span style="font-weight:400;font-size:9px;color:var(--text3)">(Prod/D\u00eda)</span></div><div class="kpi-value" style="color:var(--accent)">${fmtFull(adr)}</div></div>
+    <div class="kpi"><div class="kpi-label">ADC <span style="font-weight:400;font-size:9px;color:var(--text3)">(Costo/D\u00eda)</span></div><div class="kpi-value" style="color:#c0392b">${fmtFull(adc)}</div></div>`;
 
   const sd = {}; months.forEach(m => { sd[m] = new Array(RANGES.length).fill(0); });
   fd.forEach(a => { const ri = gri(a[8]); if (sd[a[0]]) sd[a[0]][ri]++; });
@@ -444,9 +445,9 @@ function renderTable(md, month) {
       + `<td style="text-align:center;color:var(--accent);font-size:10px">${hasC ? '\u25B6' : ''}</td>`
       + `<td class="td-mono">${a[2]}</td><td class="td-name">${a[3]}</td><td class="td-name">${a[1]}</td>`
       + `<td>${a[5]}</td><td class="td-name">${a[10]}</td>`
-      + `<td class="td-mono" style="text-align:right">${fmt(a[6])}</td>`
+      + `<td class="td-mono" style="text-align:right">${fmtFull(a[6])}</td>`
       + `<td class="td-mono" style="text-align:right">${fmtUF(a[24])}</td>`
-      + `<td class="td-mono" style="text-align:right;color:${a[7] < 0 ? '#c0392b' : '#229954'}">${fmt(a[7])}</td>`
+      + `<td class="td-mono" style="text-align:right;color:${a[7] < 0 ? '#c0392b' : '#229954'}">${fmtFull(a[7])}</td>`
       + `<td style="text-align:right"><span class="margin-badge ${cls}">${mgPct}${hasProd ? '%' : ''}</span></td>`
       + `<td class="td-mono" style="text-align:right">${fmt(a[9])}</td></tr>`;
     if (hasC) {
@@ -698,8 +699,8 @@ function refreshConsultor(name) {
     h += `<td class="td-name" style="font-size:11px">${r.adv}</td>`;
     h += `<td class="td-name" style="font-size:11px">${r.jef}</td>`;
     h += `<td class="td-mono" style="text-align:right">${r.dias.toFixed(1)}</td>`;
-    h += `<td class="td-mono" style="text-align:right;color:${r.costo < 0 ? '#c0392b' : '#229954'}">${fmt(r.costo)}</td>`;
-    h += `<td class="td-mono" style="text-align:right">${fmt(r.prod)}</td>`;
+    h += `<td class="td-mono" style="text-align:right;color:${r.costo < 0 ? '#c0392b' : '#229954'}">${fmtFull(r.costo)}</td>`;
+    h += `<td class="td-mono" style="text-align:right">${fmtFull(r.prod)}</td>`;
     h += `<td class="td-mono" style="text-align:right">${fmtUF(r.prodUF)}</td>`;
     h += `<td style="text-align:right;color:${mgColor};font-weight:600">${mgPct}${hasProd ? '%' : ''}</td>`;
     h += '</tr>';
@@ -728,15 +729,15 @@ function showTip(ev, el) {
   const wdUnit = nProfs > 0 ? Math.round(wd / nProfs) : wd;
   const wdLabel = nProfs > 1 ? `${wd} (${wdUnit} × ${nProfs})` : `${wd}`;
   let html = `<div style="margin-bottom:8px;font-weight:700;color:var(--accent);font-size:13px">${mlabel(mo)}</div>`;
-  html += `<div class="tip-grid"><div class="tip-kpi"><div class="lbl">Producci\u00f3n</div><div class="val">${fmt(pr)}</div></div>`
+  html += `<div class="tip-grid"><div class="tip-kpi"><div class="lbl">Producci\u00f3n</div><div class="val">${fmtFull(pr)}</div></div>`
     + `<div class="tip-kpi"><div class="lbl">Prod UF</div><div class="val">${fmtUF(puf)}</div></div>`
-    + `<div class="tip-kpi"><div class="lbl">Costo</div><div class="val" style="color:${co < 0 ? '#c0392b' : '#229954'}">${fmt(co)}</div></div></div>`;
+    + `<div class="tip-kpi"><div class="lbl">Costo</div><div class="val" style="color:${co < 0 ? '#c0392b' : '#229954'}">${fmtFull(co)}</div></div></div>`;
   html += `<div class="tip-grid g5">`
     + `<div class="tip-kpi"><div class="lbl">D\u00edas Imput.</div><div class="val">${di.toFixed(1)}</div></div>`
     + `<div class="tip-kpi"><div class="lbl">Working Days</div><div class="val">${wdLabel}</div></div>`
     + `<div class="tip-kpi"><div class="lbl">Holidays</div><div class="val" style="color:#8e44ad">${totalHoli > 0 ? totalHoli.toFixed(1) : ''}</div></div>`
-    + `<div class="tip-kpi"><div class="lbl">ADR</div><div class="val" style="color:var(--accent)">${fmt(adrV)}</div></div>`
-    + `<div class="tip-kpi"><div class="lbl">ADC</div><div class="val" style="color:#c0392b">${fmt(adcV)}</div></div></div>`;
+    + `<div class="tip-kpi"><div class="lbl">ADR</div><div class="val" style="color:var(--accent)">${fmtFull(adrV)}</div></div>`
+    + `<div class="tip-kpi"><div class="lbl">ADC</div><div class="val" style="color:#c0392b">${fmtFull(adcV)}</div></div></div>`;
   if (cons.length > 0) {
     html += `<div style="border-top:1px solid var(--border2);padding-top:6px;margin-top:2px">`;
     html += `<div style="font-size:10px;text-transform:uppercase;letter-spacing:0.5px;color:var(--text3);margin-bottom:4px;font-weight:600">Profesionales (${cons.length})</div>`;

@@ -764,6 +764,18 @@ function calcStepTarifa(delta) {
   calcRender();
 }
 
+function calcStepAlloc(i, delta) {
+  if (!calcSelected[i]) return;
+  const next = Math.max(0, Math.round((calcSelected[i].alloc || 0) + delta));
+  calcSelected[i].alloc = next;
+  const inp = document.querySelector(`[data-calc-alloc="${i}"]`);
+  if (inp) inp.value = next;
+  const adc = calcConsultorADC(calcSelected[i].name);
+  const cell = document.querySelector(`[data-calc-mensual="${i}"]`);
+  if (cell) cell.textContent = adc > 0 ? fmtFull(adc * CALC_DAYS * (next / 100)) : '-';
+  calcUpdateTotals();
+}
+
 function calcUpdateAlloc(i, val) {
   if (!calcSelected[i]) return;
   const v = Math.max(0, parseFloat(val) || 0);
@@ -816,7 +828,7 @@ function calcRender() {
     let h = '<table><thead><tr>'
       + '<th style="text-align:left">Consultor</th>'
       + '<th style="text-align:right">Costo Diario (ADC)</th>'
-      + '<th style="text-align:center;width:110px">% Asignación</th>'
+      + '<th style="text-align:center;width:160px">% Asignación</th>'
       + `<th style="text-align:right">Costo Mensual (× ${CALC_DAYS})</th>`
       + '<th style="width:60px"></th>'
       + '</tr></thead><tbody>';
@@ -827,7 +839,11 @@ function calcRender() {
       h += `<tr>`
         + `<td class="td-name">${s.name}</td>`
         + `<td class="td-mono" style="text-align:right">${adc > 0 ? fmtFull(adc) : '<span style="color:var(--text3)">sin datos</span>'}</td>`
-        + `<td style="text-align:center"><input type="number" class="calc-input calc-alloc" min="0" step="1" value="${s.alloc}" oninput="calcUpdateAlloc(${i}, this.value)" autocomplete="off" data-1p-ignore data-lpignore="true" data-form-type="other" style="width:70px;text-align:right"> %</td>`
+        + `<td style="text-align:center"><div class="calc-stepper calc-stepper-sm">`
+        + `<button type="button" class="calc-step-btn" onclick="calcStepAlloc(${i}, -1)" aria-label="Restar 1">−</button>`
+        + `<input type="number" class="calc-input calc-stepper-input" min="0" step="1" value="${s.alloc}" data-calc-alloc="${i}" oninput="calcUpdateAlloc(${i}, this.value)" autocomplete="off" data-1p-ignore data-lpignore="true" data-form-type="other">`
+        + `<button type="button" class="calc-step-btn" onclick="calcStepAlloc(${i}, 1)" aria-label="Sumar 1">+</button>`
+        + `</div></td>`
         + `<td class="td-mono" style="text-align:right" data-calc-mensual="${i}">${adc > 0 ? fmtFull(mensual) : '-'}</td>`
         + `<td style="text-align:center"><button class="calc-row-x" onclick="calcRemoveConsultor('${safe}')" title="Quitar">×</button></td>`
         + `</tr>`;

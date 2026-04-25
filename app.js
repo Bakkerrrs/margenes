@@ -719,7 +719,7 @@ function refreshConsultor(name) {
 // ─── Calculadora Tab ───
 
 let calcInited = false;
-let calcSelected = []; // array of consultant names
+let calcSelected = []; // [{ name, alloc }] — alloc in percent (0-100+)
 let calcUFRates = {};  // { 'YYYY-MM': pesosPerUF }
 const CALC_DAYS = 20.75;
 
@@ -745,63 +745,38 @@ function calcConsultorADC(name) {
 }
 
 function calcAddConsultor(name) {
-  if (!calcSelected.includes(name)) calcSelected.push(name);
+  if (!calcSelected.some(s => s.name === name)) calcSelected.push({ name, alloc: 100 });
   document.getElementById('calcConsultorInput').value = '';
   document.getElementById('calcConsultorDropdown').classList.remove('open');
   calcRender();
 }
 
 function calcRemoveConsultor(name) {
-  calcSelected = calcSelected.filter(n => n !== name);
+  calcSelected = calcSelected.filter(s => s.name !== name);
   calcRender();
 }
 
-function calcRender() {
-  // Tarifa Pesos
+function calcUpdateAlloc(i, val) {
+  if (!calcSelected[i]) return;
+  const v = Math.max(0, parseFloat(val) || 0);
+  calcSelected[i].alloc = v;
+  const adc = calcConsultorADC(calcSelected[i].name);
+  const mensual = adc * CALC_DAYS * (v / 100);
+  const cell = document.querySelector(`[data-calc-mensual="${i}"]`);
+  if (cell) cell.textContent = adc > 0 ? fmtFull(mensual) : '-';
+  calcUpdateTotals();
+}
+
+function calcUpdateTotals() {
   const tarifaUF = parseFloat(document.getElementById('calcTarifaUF').value) || 0;
   const month = document.getElementById('calcMonth').value;
   const ufRate = calcUFRates[month] || 0;
   const tarifaPesos = tarifaUF > 0 && ufRate > 0 ? tarifaUF * ufRate : 0;
+  const totalCosto = calcSelected.reduce((s, x) => s + calcConsultorADC(x.name) * CALC_DAYS * ((x.alloc || 0) / 100), 0);
 
-  document.getElementById('calcTarifaPesos').textContent = tarifaPesos > 0 ? fmtFull(tarifaPesos) : '-';
-  document.getElementById('calcUFRate').textContent = ufRate > 0 ? `UF del mes: ${fmtFull(ufRate)}` : 'UF del mes: sin datos';
+  const tot = document.getElementById('calcTotalMensual');
+  if (tot) tot.textContent = fmtFull(totalCosto);
 
-  // Selected consultors table
-  const wrap = document.getElementById('calcSelectedWrap');
-  if (calcSelected.length === 0) {
-    wrap.innerHTML = '<p style="color:var(--text3);padding:14px;text-align:center;font-size:12px">Agrega consultores para calcular el costo total</p>';
-  } else {
-    let totalCosto = 0;
-    let h = '<table><thead><tr>'
-      + '<th style="text-align:left">Consultor</th>'
-      + `<th style="text-align:right">Costo Diario (ADC)</th>`
-      + `<th style="text-align:right">Costo Mensual (× ${CALC_DAYS})</th>`
-      + '<th style="width:60px"></th>'
-      + '</tr></thead><tbody>';
-    calcSelected.forEach(name => {
-      const adc = calcConsultorADC(name);
-      const mensual = adc * CALC_DAYS;
-      totalCosto += mensual;
-      const safe = name.replace(/'/g, "\\'");
-      h += `<tr>`
-        + `<td class="td-name">${name}</td>`
-        + `<td class="td-mono" style="text-align:right">${adc > 0 ? fmtFull(adc) : '<span style="color:var(--text3)">sin datos</span>'}</td>`
-        + `<td class="td-mono" style="text-align:right">${adc > 0 ? fmtFull(mensual) : '-'}</td>`
-        + `<td style="text-align:center"><button class="calc-row-x" onclick="calcRemoveConsultor('${safe}')" title="Quitar">×</button></td>`
-        + `</tr>`;
-    });
-    h += `<tr style="font-weight:700;border-top:2px solid var(--border)">`
-      + `<td style="padding-top:8px">Total costos</td>`
-      + `<td></td>`
-      + `<td class="td-mono" style="text-align:right;padding-top:8px">${fmtFull(totalCosto)}</td>`
-      + `<td></td>`
-      + `</tr>`;
-    h += '</tbody></table>';
-    wrap.innerHTML = h;
-  }
-
-  // Result KPIs
-  const totalCosto = calcSelected.reduce((s, n) => s + calcConsultorADC(n) * CALC_DAYS, 0);
   const margen = tarifaPesos - totalCosto;
   const margenRatio = tarifaPesos > 0 ? margen / tarifaPesos : 0;
   const margenPct = margenRatio * 100;
@@ -814,6 +789,52 @@ function calcRender() {
     <div class="kpi"><div class="kpi-label">Total Costos</div><div class="kpi-value" style="color:#c0392b">${calcSelected.length ? fmtFull(totalCosto) : '-'}</div></div>
     <div class="kpi"><div class="kpi-label">Margen</div><div class="kpi-value" style="color:${mbColor}">${hasMargen ? fmtFull(margen) : '-'}</div></div>
     <div class="kpi"><div class="kpi-label">Margen %</div><div class="kpi-value">${hasMargen ? `<span class="margin-badge ${mbCls}" style="font-size:18px;padding:4px 12px">${margenPct.toFixed(1)}%</span>` : '-'}</div></div>`;
+}
+
+function calcRender() {
+  // Tarifa Pesos readouts
+  const tarifaUF = parseFloat(document.getElementById('calcTarifaUF').value) || 0;
+  const month = document.getElementById('calcMonth').value;
+  const ufRate = calcUFRates[month] || 0;
+  const tarifaPesos = tarifaUF > 0 && ufRate > 0 ? tarifaUF * ufRate : 0;
+  document.getElementById('calcTarifaPesos').textContent = tarifaPesos > 0 ? fmtFull(tarifaPesos) : '-';
+  document.getElementById('calcUFRate').textContent = ufRate > 0 ? `UF del mes: ${fmtFull(ufRate)}` : 'UF del mes: sin datos';
+
+  // Selected consultors table
+  const wrap = document.getElementById('calcSelectedWrap');
+  if (calcSelected.length === 0) {
+    wrap.innerHTML = '<p style="color:var(--text3);padding:14px;text-align:center;font-size:12px">Agrega consultores para calcular el costo total</p>';
+  } else {
+    let h = '<table><thead><tr>'
+      + '<th style="text-align:left">Consultor</th>'
+      + '<th style="text-align:right">Costo Diario (ADC)</th>'
+      + '<th style="text-align:center;width:110px">% Asignación</th>'
+      + `<th style="text-align:right">Costo Mensual (× ${CALC_DAYS})</th>`
+      + '<th style="width:60px"></th>'
+      + '</tr></thead><tbody>';
+    calcSelected.forEach((s, i) => {
+      const adc = calcConsultorADC(s.name);
+      const mensual = adc * CALC_DAYS * ((s.alloc || 0) / 100);
+      const safe = s.name.replace(/'/g, "\\'");
+      h += `<tr>`
+        + `<td class="td-name">${s.name}</td>`
+        + `<td class="td-mono" style="text-align:right">${adc > 0 ? fmtFull(adc) : '<span style="color:var(--text3)">sin datos</span>'}</td>`
+        + `<td style="text-align:center"><input type="number" class="calc-input calc-alloc" min="0" step="1" value="${s.alloc}" oninput="calcUpdateAlloc(${i}, this.value)" style="width:70px;text-align:right"> %</td>`
+        + `<td class="td-mono" style="text-align:right" data-calc-mensual="${i}">${adc > 0 ? fmtFull(mensual) : '-'}</td>`
+        + `<td style="text-align:center"><button class="calc-row-x" onclick="calcRemoveConsultor('${safe}')" title="Quitar">×</button></td>`
+        + `</tr>`;
+    });
+    h += `<tr style="font-weight:700;border-top:2px solid var(--border)">`
+      + `<td style="padding-top:8px">Total costos</td>`
+      + `<td></td><td></td>`
+      + `<td class="td-mono" style="text-align:right;padding-top:8px" id="calcTotalMensual">-</td>`
+      + `<td></td>`
+      + `</tr>`;
+    h += '</tbody></table>';
+    wrap.innerHTML = h;
+  }
+
+  calcUpdateTotals();
 }
 
 function initCalculadoraTab() {

@@ -689,12 +689,16 @@ function refreshConsultor(name) {
   h += '</tr></thead><tbody>';
 
   const bands = buildMonthBands(rows);
+  let prevMonth = null;
   rows.forEach((r, i) => {
-    const band = bands[i] ? ' class="month-band"' : '';
+    const isNewMonth = prevMonth !== null && r.month !== prevMonth;
+    prevMonth = r.month;
+    const cls = [bands[i] ? 'month-band' : null, isNewMonth ? 'month-divider' : null].filter(Boolean).join(' ');
+    const trCls = cls ? ` class="${cls}"` : '';
     const hasProd = r.prod !== 0;
     const mgPct = hasProd ? (r.margin * 100).toFixed(1) : 'N/A';
     const mgColor = !hasProd ? '#999' : r.margin >= 0.34 ? '#02931C' : r.margin >= 0.30 ? '#5a6600' : r.margin >= 0.28 ? '#b45309' : r.margin >= 0.25 ? '#D64550' : '#1a1a1a';
-    h += `<tr${band}>`;
+    h += `<tr${trCls}>`;
     h += `<td class="td-mono" style="font-size:11px">${r.act.startsWith('SGC') ? `<a href="#" class="codigo-link" onclick="fillSearch('${r.act}');return false">${r.act}</a>` : r.act}</td>`;
     h += `<td class="td-name">${r.desc}</td>`;
     h += `<td class="td-mono" style="font-size:11px">${mlabel(r.month)}</td>`;
@@ -1323,8 +1327,8 @@ async function impStart() {
       // Filter BDD2 by months from selected FYs (if BDD1 was processed)
       let bdd2Rows = impBDD2.rows;
       if (do1 && selectedFYs.size > 0) {
-        const fyMonths = new Set(impBDD1.rows.filter(r => selectedFYs.has(r.fy)).map(r => r.month).filter(Boolean));
-        bdd2Rows = impBDD2.rows.filter(r => fyMonths.has(r.month));
+        const fyMonths = new Set(impBDD1.rows.filter(r => selectedFYs.has(r.fy)).map(r => impFormatMonth(r.month)).filter(Boolean));
+        bdd2Rows = impBDD2.rows.filter(r => fyMonths.has(impFormatMonth(r.month)));
         impLog('info', `BDD2 → consultores (${bdd2Rows.length} filas de ${impBDD2.rows.length} total, filtrado por meses de FY seleccionados)...`);
       } else {
         impLog('info', `BDD2 → consultores (${bdd2Rows.length} filas)...`);

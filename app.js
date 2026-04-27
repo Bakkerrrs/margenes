@@ -482,7 +482,7 @@ function switchTab(tab) {
   document.getElementById('tabCalculadora').style.display = tab === 'calculadora' ? '' : 'none';
   document.getElementById('tabImportar').style.display = tab === 'importar' ? '' : 'none';
   if (tab === 'detalle') refreshDetalle();
-  if (tab === 'distribucion') refreshDistribucion();
+  if (tab === 'distribucion') { refreshDistribucion(); distribInitKeyboardPan(); }
   if (tab === 'consultor') initConsultorTab();
   if (tab === 'calculadora') initCalculadoraTab();
 }
@@ -493,8 +493,31 @@ function distribResetZoom() {
   if (dChart && typeof dChart.resetZoom === 'function') dChart.resetZoom();
 }
 
+let distribKeyHandlerInited = false;
+function distribInitKeyboardPan() {
+  if (distribKeyHandlerInited) return;
+  distribKeyHandlerInited = true;
+  document.addEventListener('keydown', e => {
+    if (activeTab !== 'distribucion' || !dChart) return;
+    const t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+    const step = e.shiftKey ? 80 : 30;
+    let dx = 0, dy = 0;
+    if (e.key === 'ArrowLeft') dx = step;
+    else if (e.key === 'ArrowRight') dx = -step;
+    else if (e.key === 'ArrowUp') dy = step;
+    else if (e.key === 'ArrowDown') dy = -step;
+    else return;
+    e.preventDefault();
+    if (typeof dChart.pan === 'function') dChart.pan({ x: dx, y: dy }, undefined, 'default');
+  });
+}
+
 function refreshDistribucion() {
-  const fd = flt(ALL).filter(a => a[6] !== 0);
+  const f = gf();
+  const fd = flt(ALL).filter(a => a[6] !== 0 && a[0] === f.month);
+  const lbl = document.getElementById('distribMonthLabel');
+  if (lbl) lbl.textContent = mlabel(f.month);
   const yMinIn = parseFloat(document.getElementById('distribYMin').value);
   const yMaxIn = parseFloat(document.getElementById('distribYMax').value);
   const yMin = isNaN(yMinIn) ? -100 : yMinIn;

@@ -137,7 +137,7 @@ tr:hover td{background:#f4f7fb}
 @media(max-width:700px){.import-grid2{grid-template-columns:1fr}}
 
 tr.month-band td{background:var(--surface2)}
-tr.month-divider td{border-top:2px solid var(--accent)}
+tr.month-divider td{border-top:2px solid var(--text3)}
 
 .codigo-link{color:var(--accent);text-decoration:none;cursor:pointer}
 .codigo-link:hover{text-decoration:underline}

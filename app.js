@@ -491,12 +491,19 @@ function switchTab(tab) {
 
 function refreshDistribucion() {
   const fd = flt(ALL).filter(a => a[6] !== 0);
+  const yMinIn = parseFloat(document.getElementById('distribYMin').value);
+  const yMaxIn = parseFloat(document.getElementById('distribYMax').value);
+  const yMin = isNaN(yMinIn) ? -100 : yMinIn;
+  const yMax = isNaN(yMaxIn) ? 100 : yMaxIn;
+
+  let outOfRange = 0;
   const datasets = RANGES.map((r, ri) => ({
     label: r.label,
-    data: fd.filter(a => gri(a[8]) === ri).map(a => ({
-      x: a[6], y: a[8] * 100,
-      _act: a[2], _desc: a[3], _cu: a[1], _mo: a[0], _co: a[7]
-    })),
+    data: fd.filter(a => gri(a[8]) === ri).map(a => {
+      const y = a[8] * 100;
+      if (y < yMin || y > yMax) outOfRange++;
+      return { x: a[6], y, _act: a[2], _desc: a[3], _cu: a[1], _mo: a[0], _co: a[7] };
+    }),
     backgroundColor: r.color,
     borderColor: '#ffffff',
     borderWidth: 1,
@@ -505,10 +512,11 @@ function refreshDistribucion() {
   }));
 
   const totalPoints = datasets.reduce((s, d) => s + d.data.length, 0);
+  const oorLabel = outOfRange > 0 ? ` <span style="color:#c0392b">· ${outOfRange} fuera de rango</span>` : '';
   document.getElementById('distribLegend').innerHTML = RANGES.map((r, ri) => {
     const count = datasets[ri].data.length;
     return `<div class="legend-item"><span style="display:inline-block;width:10px;height:10px;background:${r.color};border-radius:50%;margin-right:4px"></span>${r.label} <span style="color:var(--text3);margin-left:4px">(${count})</span></div>`;
-  }).join('') + `<div class="legend-item" style="margin-left:auto;color:var(--text3)">Total: ${totalPoints}</div>`;
+  }).join('') + `<div class="legend-item" style="margin-left:auto;color:var(--text3)">Total: ${totalPoints}${oorLabel}</div>`;
 
   if (dChart) dChart.destroy();
   dChart = new Chart(document.getElementById('distribChart').getContext('2d'), {
@@ -541,6 +549,7 @@ function refreshDistribucion() {
           border: { color: '#dfe3e8' }
         },
         y: {
+          min: yMin, max: yMax,
           title: { display: true, text: 'Margen (%)', color: '#5a6a7e', font: { family: 'Source Sans 3', size: 12 } },
           grid: { color: 'rgba(0,0,0,0.04)' },
           ticks: { color: '#5a6a7e', font: { family: 'JetBrains Mono', size: 11 }, callback: v => v + '%' },

@@ -551,6 +551,17 @@ function refreshDistribucion() {
     data: { datasets },
     options: {
       responsive: true, maintainAspectRatio: false,
+      onClick: (evt, elements) => {
+        if (!elements || !elements.length) return;
+        const el = elements[0];
+        const point = dChart.data.datasets[el.datasetIndex].data[el.index];
+        if (point && point._act) fillSearch(point._act);
+      },
+      onHover: (evt, elements) => {
+        if (evt && evt.native && evt.native.target) {
+          evt.native.target.style.cursor = elements && elements.length ? 'pointer' : 'default';
+        }
+      },
       plugins: {
         legend: { display: false },
         tooltip: {

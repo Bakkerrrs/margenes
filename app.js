@@ -489,6 +489,10 @@ function switchTab(tab) {
 
 // ─── Distribución Tab ───
 
+function distribResetZoom() {
+  if (dChart && typeof dChart.resetZoom === 'function') dChart.resetZoom();
+}
+
 function refreshDistribucion() {
   const fd = flt(ALL).filter(a => a[6] !== 0);
   const yMinIn = parseFloat(document.getElementById('distribYMin').value);
@@ -537,6 +541,15 @@ function refreshDistribucion() {
               `Costo: ${fmtFull(ctx.raw._co)}`,
               `Margen: ${ctx.raw.y.toFixed(1)}%`
             ]
+          }
+        },
+        zoom: {
+          pan: { enabled: true, mode: 'xy', threshold: 5 },
+          zoom: {
+            wheel: { enabled: true, speed: 0.1 },
+            pinch: { enabled: true },
+            drag: { enabled: true, modifierKey: 'shift', backgroundColor: 'rgba(27,95,168,0.15)', borderColor: 'rgba(27,95,168,0.6)', borderWidth: 1 },
+            mode: 'xy'
           }
         }
       },

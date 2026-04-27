@@ -25,7 +25,7 @@ let HOLI = {};   // holidays keyed by "employee|month" → total dias
 let CONS_RAW = []; // raw consultores rows for Consultor tab
 let F = { fy: [], bu: [], ta: [], cu: [], je: [] };  // filter options
 
-let sChart, hChart;
+let sChart, hChart, dChart;
 let sortCol = 8, sortDir = 'asc';
 let detSortCol = 'ad', detSortDir = 'asc';
 let activeTab = 'resumen';
@@ -413,6 +413,7 @@ function refresh() {
   const filtered = selRange === -1 ? md : md.filter(a => gri(a[8]) === selRange);
   renderTable(filtered, f.month);
   if (activeTab === 'detalle') refreshDetalle();
+  if (activeTab === 'distribucion') refreshDistribucion();
 }
 
 // ─── Resumen Table ───
@@ -476,12 +477,79 @@ function switchTab(tab) {
   document.querySelector(`.tab[onclick="switchTab('${tab}')"]`).classList.add('active');
   document.getElementById('tabResumen').style.display = tab === 'resumen' ? '' : 'none';
   document.getElementById('tabDetalle').style.display = tab === 'detalle' ? '' : 'none';
+  document.getElementById('tabDistribucion').style.display = tab === 'distribucion' ? '' : 'none';
   document.getElementById('tabConsultor').style.display = tab === 'consultor' ? '' : 'none';
   document.getElementById('tabCalculadora').style.display = tab === 'calculadora' ? '' : 'none';
   document.getElementById('tabImportar').style.display = tab === 'importar' ? '' : 'none';
   if (tab === 'detalle') refreshDetalle();
+  if (tab === 'distribucion') refreshDistribucion();
   if (tab === 'consultor') initConsultorTab();
   if (tab === 'calculadora') initCalculadoraTab();
+}
+
+// ─── Distribución Tab ───
+
+function refreshDistribucion() {
+  const fd = flt(ALL).filter(a => a[6] !== 0);
+  const datasets = RANGES.map((r, ri) => ({
+    label: r.label,
+    data: fd.filter(a => gri(a[8]) === ri).map(a => ({
+      x: a[6], y: a[8] * 100,
+      _act: a[2], _desc: a[3], _cu: a[1], _mo: a[0], _co: a[7]
+    })),
+    backgroundColor: r.color,
+    borderColor: '#ffffff',
+    borderWidth: 1,
+    pointRadius: 5,
+    pointHoverRadius: 8
+  }));
+
+  const totalPoints = datasets.reduce((s, d) => s + d.data.length, 0);
+  document.getElementById('distribLegend').innerHTML = RANGES.map((r, ri) => {
+    const count = datasets[ri].data.length;
+    return `<div class="legend-item"><span style="display:inline-block;width:10px;height:10px;background:${r.color};border-radius:50%;margin-right:4px"></span>${r.label} <span style="color:var(--text3);margin-left:4px">(${count})</span></div>`;
+  }).join('') + `<div class="legend-item" style="margin-left:auto;color:var(--text3)">Total: ${totalPoints}</div>`;
+
+  if (dChart) dChart.destroy();
+  dChart = new Chart(document.getElementById('distribChart').getContext('2d'), {
+    type: 'scatter',
+    data: { datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#fff', titleColor: '#1a2b3c', bodyColor: '#5a6a7e', borderColor: '#dfe3e8', borderWidth: 1, cornerRadius: 6, padding: 10,
+          callbacks: {
+            title: ctx => `${ctx[0].raw._act} — ${mlabel(ctx[0].raw._mo)}`,
+            label: ctx => [
+              ctx.raw._desc,
+              `Cliente: ${ctx.raw._cu}`,
+              `Producción: ${fmtFull(ctx.raw.x)}`,
+              `Costo: ${fmtFull(ctx.raw._co)}`,
+              `Margen: ${ctx.raw.y.toFixed(1)}%`
+            ]
+          }
+        }
+      },
+      scales: {
+        x: {
+          type: 'linear',
+          title: { display: true, text: 'Producción (CLP)', color: '#5a6a7e', font: { family: 'Source Sans 3', size: 12 } },
+          grid: { color: 'rgba(0,0,0,0.04)' },
+          ticks: { color: '#5a6a7e', font: { family: 'JetBrains Mono', size: 11 }, callback: v => fmtFull(v) },
+          border: { color: '#dfe3e8' }
+        },
+        y: {
+          title: { display: true, text: 'Margen (%)', color: '#5a6a7e', font: { family: 'Source Sans 3', size: 12 } },
+          grid: { color: 'rgba(0,0,0,0.04)' },
+          ticks: { color: '#5a6a7e', font: { family: 'JetBrains Mono', size: 11 }, callback: v => v + '%' },
+          border: { color: '#dfe3e8' }
+        }
+      },
+      animation: { duration: 400 }
+    }
+  });
 }
 
 // ─── Detalle Tab ───

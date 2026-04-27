@@ -90,6 +90,7 @@
   <div class="tabs">
     <div class="tab active" onclick="switchTab('resumen')">Resumen</div>
     <div class="tab" onclick="switchTab('detalle')">Detalle</div>
+    <div class="tab" onclick="switchTab('distribucion')">Distribución</div>
     <div class="tab" onclick="switchTab('consultor')">Consultor</div>
     <div class="tab" onclick="switchTab('calculadora')">Calculadora</div>
     <div class="tab" onclick="switchTab('importar')">Importar Excel</div>
@@ -116,6 +117,14 @@
     <div class="card">
       <div class="card-title"><span class="ta">●</span> Margen Histórico por Actividad</div>
       <div class="table-wrap" id="detalleTableWrap" style="max-height:700px"></div>
+    </div>
+  </div>
+
+  <div id="tabDistribucion" style="display:none">
+    <div class="card">
+      <div class="card-title"><span class="ta">●</span> Distribución de Actividades — Producción vs Margen</div>
+      <div id="distribLegend" class="legend"></div>
+      <div class="distrib-chart-container"><canvas id="distribChart"></canvas></div>
     </div>
   </div>
 

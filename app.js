@@ -444,7 +444,7 @@ function renderTable(md, month) {
     const key = `${a[2]}|${month}`, hasC = CONS[key] && CONS[key].length > 0;
     h += `<tr class="${hasC ? 'expand-row' : ''}" onclick="${hasC ? `toggleRow('cr${idx}')` : ''}">`
       + `<td style="text-align:center;color:var(--accent);font-size:10px">${hasC ? '\u25B6' : ''}</td>`
-      + `<td class="td-mono">${a[2]}</td><td class="td-name">${a[3]}</td><td class="td-name">${a[1]}</td>`
+      + `<td class="td-mono">${a[2].startsWith('SGC') ? `<a href="#" class="codigo-link" onclick="event.stopPropagation();fillSearch('${a[2]}');return false">${a[2]}</a>` : a[2]}</td><td class="td-name">${a[3]}</td><td class="td-name">${a[1]}</td>`
       + `<td>${a[5]}</td><td class="td-name">${a[10]}</td>`
       + `<td class="td-mono" style="text-align:right">${fmtFull(a[6])}</td>`
       + `<td class="td-mono" style="text-align:right">${fmtUF(a[24])}</td>`

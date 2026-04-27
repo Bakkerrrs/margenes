@@ -1323,8 +1323,8 @@ async function impStart() {
       // Filter BDD2 by months from selected FYs (if BDD1 was processed)
       let bdd2Rows = impBDD2.rows;
       if (do1 && selectedFYs.size > 0) {
-        const fyMonths = new Set(impBDD1.rows.filter(r => selectedFYs.has(r.fy)).map(r => r.month).filter(Boolean));
-        bdd2Rows = impBDD2.rows.filter(r => fyMonths.has(r.month));
+        const fyMonths = new Set(impBDD1.rows.filter(r => selectedFYs.has(r.fy)).map(r => impFormatMonth(r.month)).filter(Boolean));
+        bdd2Rows = impBDD2.rows.filter(r => fyMonths.has(impFormatMonth(r.month)));
         impLog('info', `BDD2 → consultores (${bdd2Rows.length} filas de ${impBDD2.rows.length} total, filtrado por meses de FY seleccionados)...`);
       } else {
         impLog('info', `BDD2 → consultores (${bdd2Rows.length} filas)...`);

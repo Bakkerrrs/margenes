@@ -25,7 +25,7 @@ let HOLI = {};   // holidays keyed by "employee|month" → total dias
 let CONS_RAW = []; // raw consultores rows for Consultor tab
 let F = { fy: [], bu: [], ta: [], cu: [], je: [] };  // filter options
 
-let sChart, hChart;
+let sChart, hChart, dChart;
 let sortCol = 8, sortDir = 'asc';
 let detSortCol = 'ad', detSortDir = 'asc';
 let activeTab = 'resumen';
@@ -413,6 +413,7 @@ function refresh() {
   const filtered = selRange === -1 ? md : md.filter(a => gri(a[8]) === selRange);
   renderTable(filtered, f.month);
   if (activeTab === 'detalle') refreshDetalle();
+  if (activeTab === 'distribucion') refreshDistribucion();
 }
 
 // ─── Resumen Table ───
@@ -443,7 +444,7 @@ function renderTable(md, month) {
     const key = `${a[2]}|${month}`, hasC = CONS[key] && CONS[key].length > 0;
     h += `<tr class="${hasC ? 'expand-row' : ''}" onclick="${hasC ? `toggleRow('cr${idx}')` : ''}">`
       + `<td style="text-align:center;color:var(--accent);font-size:10px">${hasC ? '\u25B6' : ''}</td>`
-      + `<td class="td-mono">${a[2]}</td><td class="td-name">${a[3]}</td><td class="td-name">${a[1]}</td>`
+      + `<td class="td-mono">${a[2].startsWith('SGC') ? `<a href="#" class="codigo-link" onclick="event.stopPropagation();fillSearch('${a[2]}');return false">${a[2]}</a>` : a[2]}</td><td class="td-name">${a[3]}</td><td class="td-name">${a[1]}</td>`
       + `<td>${a[5]}</td><td class="td-name">${a[10]}</td>`
       + `<td class="td-mono" style="text-align:right">${fmtFull(a[6])}</td>`
       + `<td class="td-mono" style="text-align:right">${fmtUF(a[24])}</td>`
@@ -476,12 +477,135 @@ function switchTab(tab) {
   document.querySelector(`.tab[onclick="switchTab('${tab}')"]`).classList.add('active');
   document.getElementById('tabResumen').style.display = tab === 'resumen' ? '' : 'none';
   document.getElementById('tabDetalle').style.display = tab === 'detalle' ? '' : 'none';
+  document.getElementById('tabDistribucion').style.display = tab === 'distribucion' ? '' : 'none';
   document.getElementById('tabConsultor').style.display = tab === 'consultor' ? '' : 'none';
   document.getElementById('tabCalculadora').style.display = tab === 'calculadora' ? '' : 'none';
   document.getElementById('tabImportar').style.display = tab === 'importar' ? '' : 'none';
   if (tab === 'detalle') refreshDetalle();
+  if (tab === 'distribucion') { refreshDistribucion(); distribInitKeyboardPan(); }
   if (tab === 'consultor') initConsultorTab();
   if (tab === 'calculadora') initCalculadoraTab();
+}
+
+// ─── Distribución Tab ───
+
+function distribResetZoom() {
+  if (dChart && typeof dChart.resetZoom === 'function') dChart.resetZoom();
+}
+
+let distribKeyHandlerInited = false;
+function distribInitKeyboardPan() {
+  if (distribKeyHandlerInited) return;
+  distribKeyHandlerInited = true;
+  document.addEventListener('keydown', e => {
+    if (activeTab !== 'distribucion' || !dChart) return;
+    const t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+    const step = e.shiftKey ? 80 : 30;
+    let dx = 0, dy = 0;
+    if (e.key === 'ArrowLeft') dx = step;
+    else if (e.key === 'ArrowRight') dx = -step;
+    else if (e.key === 'ArrowUp') dy = step;
+    else if (e.key === 'ArrowDown') dy = -step;
+    else return;
+    e.preventDefault();
+    if (typeof dChart.pan === 'function') dChart.pan({ x: dx, y: dy }, undefined, 'default');
+  });
+}
+
+function refreshDistribucion() {
+  const f = gf();
+  const fd = flt(ALL).filter(a => a[6] !== 0 && a[0] === f.month);
+  const lbl = document.getElementById('distribMonthLabel');
+  if (lbl) lbl.textContent = mlabel(f.month);
+  const yMinIn = parseFloat(document.getElementById('distribYMin').value);
+  const yMaxIn = parseFloat(document.getElementById('distribYMax').value);
+  const yMin = isNaN(yMinIn) ? -100 : yMinIn;
+  const yMax = isNaN(yMaxIn) ? 100 : yMaxIn;
+
+  let outOfRange = 0;
+  const datasets = RANGES.map((r, ri) => ({
+    label: r.label,
+    data: fd.filter(a => gri(a[8]) === ri).map(a => {
+      const y = a[8] * 100;
+      if (y < yMin || y > yMax) outOfRange++;
+      return { x: a[6], y, _act: a[2], _desc: a[3], _cu: a[1], _mo: a[0], _co: a[7] };
+    }),
+    backgroundColor: r.color,
+    borderColor: '#ffffff',
+    borderWidth: 1,
+    pointRadius: 5,
+    pointHoverRadius: 8
+  }));
+
+  const totalPoints = datasets.reduce((s, d) => s + d.data.length, 0);
+  const oorLabel = outOfRange > 0 ? ` <span style="color:#c0392b">· ${outOfRange} fuera de rango</span>` : '';
+  document.getElementById('distribLegend').innerHTML = RANGES.map((r, ri) => {
+    const count = datasets[ri].data.length;
+    return `<div class="legend-item"><span style="display:inline-block;width:10px;height:10px;background:${r.color};border-radius:50%;margin-right:4px"></span>${r.label} <span style="color:var(--text3);margin-left:4px">(${count})</span></div>`;
+  }).join('') + `<div class="legend-item" style="margin-left:auto;color:var(--text3)">Total: ${totalPoints}${oorLabel}</div>`;
+
+  if (dChart) dChart.destroy();
+  dChart = new Chart(document.getElementById('distribChart').getContext('2d'), {
+    type: 'scatter',
+    data: { datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      onClick: (evt, elements) => {
+        if (!elements || !elements.length) return;
+        const el = elements[0];
+        const point = dChart.data.datasets[el.datasetIndex].data[el.index];
+        if (point && point._act) fillSearch(point._act);
+      },
+      onHover: (evt, elements) => {
+        if (evt && evt.native && evt.native.target) {
+          evt.native.target.style.cursor = elements && elements.length ? 'pointer' : 'default';
+        }
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#fff', titleColor: '#1a2b3c', bodyColor: '#5a6a7e', borderColor: '#dfe3e8', borderWidth: 1, cornerRadius: 6, padding: 10,
+          callbacks: {
+            title: ctx => `${ctx[0].raw._act} — ${mlabel(ctx[0].raw._mo)}`,
+            label: ctx => [
+              ctx.raw._desc,
+              `Cliente: ${ctx.raw._cu}`,
+              `Producción: ${fmtFull(ctx.raw.x)}`,
+              `Costo: ${fmtFull(ctx.raw._co)}`,
+              `Margen: ${ctx.raw.y.toFixed(1)}%`
+            ]
+          }
+        },
+        zoom: {
+          pan: { enabled: true, mode: 'xy', threshold: 5 },
+          zoom: {
+            wheel: { enabled: true, speed: 0.1 },
+            pinch: { enabled: true },
+            drag: { enabled: true, modifierKey: 'shift', backgroundColor: 'rgba(27,95,168,0.15)', borderColor: 'rgba(27,95,168,0.6)', borderWidth: 1 },
+            mode: 'xy'
+          }
+        }
+      },
+      scales: {
+        x: {
+          type: 'linear',
+          title: { display: true, text: 'Producción (CLP)', color: '#5a6a7e', font: { family: 'Source Sans 3', size: 12 } },
+          grid: { color: 'rgba(0,0,0,0.04)' },
+          ticks: { color: '#5a6a7e', font: { family: 'JetBrains Mono', size: 11 }, callback: v => fmtFull(v) },
+          border: { color: '#dfe3e8' }
+        },
+        y: {
+          min: yMin, max: yMax,
+          title: { display: true, text: 'Margen (%)', color: '#5a6a7e', font: { family: 'Source Sans 3', size: 12 } },
+          grid: { color: 'rgba(0,0,0,0.04)' },
+          ticks: { color: '#5a6a7e', font: { family: 'JetBrains Mono', size: 11 }, callback: v => v + '%' },
+          border: { color: '#dfe3e8' }
+        }
+      },
+      animation: { duration: 400 }
+    }
+  });
 }
 
 // ─── Detalle Tab ───

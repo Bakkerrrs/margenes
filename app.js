@@ -661,7 +661,7 @@ function refreshDetalleRev() {
       const consTxt = r.cons.length ? r.cons.join(', ') : '<span style="color:var(--text3)">—</span>';
       const mgColor = r.mg < 0 ? '#c0392b' : '#229954';
       h += '<tr>'
-        + `<td class="td-mono" style="font-size:12px"><b>${r.code}</b> <span style="color:var(--text2);font-weight:400">${r.desc}</span></td>`
+        + `<td class="td-mono" style="font-size:12px"><a href="#" class="codigo-link" onclick="fillSearch('${r.code}');return false" title="Filtrar por esta actividad"><b>${r.code}</b> <span style="font-weight:400">${r.desc}</span></a></td>`
         + `<td class="td-name" style="font-size:11px;color:var(--text2)" title="${r.cons.join(', ')}">${consTxt}</td>`
         + `<td class="td-mono" style="text-align:right">${fmtFull(r.rev)}</td>`
         + `<td class="td-mono" style="text-align:right;color:${r.holi > 0 ? '#8e44ad' : 'var(--text3)'}">${r.holi > 0 ? r.holi.toFixed(1) : '0'}</td>`

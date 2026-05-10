@@ -28,6 +28,7 @@ let F = { fy: [], bu: [], ta: [], cu: [], je: [] };  // filter options
 let sChart, hChart, dChart, drChart;
 let sortCol = 8, sortDir = 'asc';
 let detSortCol = 'ad', detSortDir = 'asc';
+let detRevSortCol = 'rev', detRevSortDir = 'desc';
 let activeTab = 'resumen';
 let selRange = -1; // selected RANGES index from hChart click (-1 = no filter)
 
@@ -612,27 +613,70 @@ function refreshDetalleRev() {
     }
   });
 
-  // Monthly table with top-3 consultants on holidays
-  let h = '<table><thead><tr>'
-    + '<th>Mes</th>'
-    + '<th style="text-align:right">Revenue</th>'
-    + '<th style="text-align:right"># Consultores</th>'
-    + '<th style="text-align:right">Días Vacaciones</th>'
-    + '<th>Top consultores en vacaciones</th>'
-    + '</tr></thead><tbody>';
-  months.forEach(m => {
-    const d = byMonth[m];
-    const top = Object.entries(d.perCons).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([n, v]) => `${n} (${v.toFixed(1)})`).join(', ');
-    h += `<tr>`
-      + `<td class="td-mono" style="font-size:12px">${mlabel(m)}</td>`
-      + `<td class="td-mono" style="text-align:right">${fmtFull(d.revenue)}</td>`
-      + `<td class="td-mono" style="text-align:right">${d.consultants.size}</td>`
-      + `<td class="td-mono" style="text-align:right;color:${d.holiDays > 0 ? '#8e44ad' : 'var(--text3)'}">${d.holiDays > 0 ? d.holiDays.toFixed(1) : '0'}</td>`
-      + `<td class="td-name" style="font-size:11px;color:var(--text2)">${top || '<span style="color:var(--text3)">—</span>'}</td>`
-      + `</tr>`;
+  // Per-activity YTD table
+  const ytdHoli = buildHolidaysYTD(f.fy);
+  const byAct = {};
+  fd.forEach(a => {
+    const k = a[2];
+    if (!byAct[k]) byAct[k] = { code: a[2], desc: a[3], rev: 0, cost: 0, cons: new Set() };
+    byAct[k].rev += Number(a[6]) || 0;
+    byAct[k].cost += Number(a[7]) || 0;
+    const cs = CONS[`${a[2]}|${a[0]}`] || [];
+    cs.forEach(c => byAct[k].cons.add(c[0]));
   });
+  const rows = Object.values(byAct).map(r => {
+    const consNames = [...r.cons];
+    const holi = consNames.reduce((s, n) => s + (ytdHoli[n] || 0), 0);
+    const mg = r.rev - r.cost;
+    const mgPct = r.rev !== 0 ? (mg / r.rev) * 100 : 0;
+    return { code: r.code, desc: r.desc, cons: consNames, rev: r.rev, holi, mg, mgPct };
+  });
+
+  rows.sort((a, b) => {
+    let va, vb;
+    if (detRevSortCol === 'act') { va = `${a.code} ${a.desc}`.toLowerCase(); vb = `${b.code} ${b.desc}`.toLowerCase(); return detRevSortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va); }
+    if (detRevSortCol === 'cons') { va = a.cons.join(',').toLowerCase(); vb = b.cons.join(',').toLowerCase(); return detRevSortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va); }
+    if (detRevSortCol === 'rev') { va = a.rev; vb = b.rev; }
+    else if (detRevSortCol === 'holi') { va = a.holi; vb = b.holi; }
+    else if (detRevSortCol === 'mg') { va = a.mg; vb = b.mg; }
+    return detRevSortDir === 'asc' ? (va - vb) : (vb - va);
+  });
+
+  function shCls(col, align) {
+    const active = detRevSortCol === col;
+    const arrow = active ? (detRevSortDir === 'asc' ? ' ▲' : ' ▼') : '';
+    return `<th class="sortable${active ? ' ' + detRevSortDir : ''}" onclick="detRevSort('${col}')" style="cursor:pointer${align ? ';text-align:' + align : ''}">__LABEL__${arrow}</th>`;
+  }
+  let h = '<table><thead><tr>'
+    + shCls('act').replace('__LABEL__', 'Actividad')
+    + shCls('cons').replace('__LABEL__', 'Consultor(es)')
+    + shCls('rev', 'right').replace('__LABEL__', 'Revenue YTD')
+    + shCls('holi', 'right').replace('__LABEL__', 'Holidays YTD')
+    + shCls('mg', 'right').replace('__LABEL__', 'Margen YTD')
+    + '</tr></thead><tbody>';
+  if (rows.length === 0) {
+    h += '<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:18px">Sin actividades para los filtros actuales</td></tr>';
+  } else {
+    rows.forEach(r => {
+      const consTxt = r.cons.length ? r.cons.join(', ') : '<span style="color:var(--text3)">—</span>';
+      const mgColor = r.mg < 0 ? '#c0392b' : '#229954';
+      h += '<tr>'
+        + `<td class="td-mono" style="font-size:12px"><b>${r.code}</b> <span style="color:var(--text2);font-weight:400">${r.desc}</span></td>`
+        + `<td class="td-name" style="font-size:11px;color:var(--text2)" title="${r.cons.join(', ')}">${consTxt}</td>`
+        + `<td class="td-mono" style="text-align:right">${fmtFull(r.rev)}</td>`
+        + `<td class="td-mono" style="text-align:right;color:${r.holi > 0 ? '#8e44ad' : 'var(--text3)'}">${r.holi > 0 ? r.holi.toFixed(1) : '0'}</td>`
+        + `<td class="td-mono" style="text-align:right;color:${mgColor}">${fmtFull(r.mg)} <span style="color:var(--text3);font-size:10px">(${r.mgPct.toFixed(1)}%)</span></td>`
+        + '</tr>';
+    });
+  }
   h += '</tbody></table>';
   document.getElementById('detRevTableWrap').innerHTML = h;
+}
+
+function detRevSort(col) {
+  if (detRevSortCol === col) detRevSortDir = detRevSortDir === 'asc' ? 'desc' : 'asc';
+  else { detRevSortCol = col; detRevSortDir = (col === 'act' || col === 'cons') ? 'asc' : 'desc'; }
+  refreshDetalleRev();
 }
 
 // ─── Distribución Tab ───

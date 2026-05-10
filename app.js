@@ -228,6 +228,11 @@ function fillSearch(code) {
   refreshDetalle();
 }
 
+function clearFilter(id) {
+  document.getElementById(id).value = '';
+  refresh();
+}
+
 // ─── Filters & helpers ───
 
 function onFYChange() {

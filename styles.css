@@ -29,6 +29,9 @@ body{font-family:'Source Sans 3',-apple-system,BlinkMacSystemFont,sans-serif;bac
 .search-wrap input{width:100%;background:var(--surface);border:1px solid var(--border);color:var(--text);padding:6px 10px 6px 30px;border-radius:6px;font-size:13px;font-family:'Source Sans 3',sans-serif;transition:border-color 0.15s}
 .search-wrap input:focus{outline:none;border-color:var(--accent2);box-shadow:0 0 0 2px rgba(27,95,168,0.12)}
 .search-wrap svg{position:absolute;left:8px;top:50%;transform:translateY(-50%);pointer-events:none}
+.input-row{display:flex;align-items:stretch;gap:4px}
+.filter-clear{background:var(--surface);border:1px solid var(--border);color:var(--text3);min-width:26px;cursor:pointer;border-radius:6px;font-size:15px;line-height:1;padding:0 6px;font-weight:600;transition:all 0.15s;font-family:inherit}
+.filter-clear:hover{background:var(--surface2);color:#c0392b;border-color:#c0392b}
 
 .main{padding:18px 24px;max-width:1480px;margin:0 auto}
 .kpi-row{display:grid;grid-template-columns:repeat(7,1fr);gap:12px;margin-bottom:18px}

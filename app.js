@@ -25,7 +25,7 @@ let HOLI = {};   // holidays keyed by "employee|month" → total dias
 let CONS_RAW = []; // raw consultores rows for Consultor tab
 let F = { fy: [], bu: [], ta: [], cu: [], je: [] };  // filter options
 
-let sChart, hChart, dChart;
+let sChart, hChart, dChart, drChart;
 let sortCol = 8, sortDir = 'asc';
 let detSortCol = 'ad', detSortDir = 'asc';
 let activeTab = 'resumen';
@@ -208,6 +208,8 @@ function initUI() {
   );
   document.getElementById('filterProdPos').addEventListener('change', refresh);
   document.getElementById('filterProd1M').addEventListener('change', refresh);
+  document.getElementById('filterHoli5').addEventListener('change', refresh);
+  document.getElementById('filterHoli15').addEventListener('change', refresh);
   let searchTimer;
   document.getElementById('filterSearch').addEventListener('input', () => {
     clearTimeout(searchTimer);
@@ -269,12 +271,29 @@ function gf() {
     month: document.getElementById('filterMonth').value,
     prodPos: document.getElementById('filterProdPos').checked,
     prod1M: document.getElementById('filterProd1M').checked,
+    holi5: document.getElementById('filterHoli5').checked,
+    holi15: document.getElementById('filterHoli15').checked,
     q: document.getElementById('filterSearch').value.trim().toLowerCase()
   };
 }
 
+// Build map { consultantName: total holidays in selected FY }
+function buildHolidaysYTD(fy) {
+  const fyMonths = new Set(ALL.filter(a => a[13] === fy).map(a => a[0]));
+  const out = {};
+  Object.keys(HOLI).forEach(k => {
+    const [name, month] = k.split('|');
+    if (!fyMonths.has(month)) return;
+    out[name] = (out[name] || 0) + (Number(HOLI[k]) || 0);
+  });
+  return out;
+}
+
 function flt(data) {
   const f = gf();
+  const needHoliFilter = f.holi5 || f.holi15;
+  const ytdHoli = needHoliFilter ? buildHolidaysYTD(f.fy) : null;
+  const threshold = f.holi15 ? 15 : (f.holi5 ? 5 : 0);
   return data.filter(a => {
     if (a[13] !== f.fy) return false;
     if (f.bu && a[5] !== f.bu) return false;
@@ -284,6 +303,10 @@ function flt(data) {
     if (f.prodPos && a[6] <= 0) return false;
     if (f.prod1M && a[6] < 1000000) return false;
     if (f.q && !(a[2].toLowerCase().includes(f.q) || a[3].toLowerCase().includes(f.q))) return false;
+    if (needHoliFilter) {
+      const consultants = CONS[`${a[2]}|${a[0]}`] || [];
+      if (!consultants.some(c => (ytdHoli[c[0]] || 0) > threshold)) return false;
+    }
     return true;
   });
 }
@@ -413,6 +436,7 @@ function refresh() {
   const filtered = selRange === -1 ? md : md.filter(a => gri(a[8]) === selRange);
   renderTable(filtered, f.month);
   if (activeTab === 'detalle') refreshDetalle();
+  if (activeTab === 'detalleRev') refreshDetalleRev();
   if (activeTab === 'distribucion') refreshDistribucion();
 }
 
@@ -477,14 +501,138 @@ function switchTab(tab) {
   document.querySelector(`.tab[onclick="switchTab('${tab}')"]`).classList.add('active');
   document.getElementById('tabResumen').style.display = tab === 'resumen' ? '' : 'none';
   document.getElementById('tabDetalle').style.display = tab === 'detalle' ? '' : 'none';
+  document.getElementById('tabDetalleRev').style.display = tab === 'detalleRev' ? '' : 'none';
   document.getElementById('tabDistribucion').style.display = tab === 'distribucion' ? '' : 'none';
   document.getElementById('tabConsultor').style.display = tab === 'consultor' ? '' : 'none';
   document.getElementById('tabCalculadora').style.display = tab === 'calculadora' ? '' : 'none';
   document.getElementById('tabImportar').style.display = tab === 'importar' ? '' : 'none';
   if (tab === 'detalle') refreshDetalle();
+  if (tab === 'detalleRev') refreshDetalleRev();
   if (tab === 'distribucion') { refreshDistribucion(); distribInitKeyboardPan(); }
   if (tab === 'consultor') initConsultorTab();
   if (tab === 'calculadora') initCalculadoraTab();
+}
+
+// ─── Detalle Revenue Tab ───
+
+function refreshDetalleRev() {
+  const f = gf();
+  const fd = flt(ALL);
+  const months = [...new Set(fd.map(a => a[0]))].sort();
+
+  // Build per-month aggregates
+  const byMonth = {};
+  months.forEach(m => { byMonth[m] = { revenue: 0, holiDays: 0, consultants: new Set(), perCons: {} }; });
+  fd.forEach(a => {
+    const m = a[0];
+    byMonth[m].revenue += Number(a[6]) || 0;
+    const cons = CONS[`${a[2]}|${m}`] || [];
+    cons.forEach(c => byMonth[m].consultants.add(c[0]));
+  });
+  // Sum holidays per unique consultant of that month, and track per-consultant totals
+  months.forEach(m => {
+    byMonth[m].consultants.forEach(name => {
+      const hd = HOLI[`${name}|${m}`] || 0;
+      if (hd > 0) {
+        byMonth[m].holiDays += hd;
+        byMonth[m].perCons[name] = hd;
+      }
+    });
+  });
+
+  // Title
+  const titleParts = [];
+  if (f.q) titleParts.push(`"${f.q}"`);
+  if (f.cu) titleParts.push(f.cu);
+  if (f.bu) titleParts.push(f.bu);
+  if (titleParts.length === 0) titleParts.push(`Todas las actividades · FY ${f.fy}`);
+  else titleParts.push(`FY ${f.fy}`);
+  document.getElementById('detRevTitle').textContent = titleParts.join(' · ');
+
+  // KPIs
+  const totalRev = months.reduce((s, m) => s + byMonth[m].revenue, 0);
+  const totalHoli = months.reduce((s, m) => s + byMonth[m].holiDays, 0);
+  let peakMo = null, peakHoli = -1; months.forEach(m => { if (byMonth[m].holiDays > peakHoli) { peakHoli = byMonth[m].holiDays; peakMo = m; } });
+  let lowMo = null, lowRev = Infinity; months.forEach(m => { if (byMonth[m].revenue < lowRev) { lowRev = byMonth[m].revenue; lowMo = m; } });
+
+  document.getElementById('detRevKpis').innerHTML = `
+    <div class="kpi"><div class="kpi-label">Revenue Total</div><div class="kpi-value">${months.length ? fmtFull(totalRev) : '-'}</div></div>
+    <div class="kpi"><div class="kpi-label">Días Vacaciones Total</div><div class="kpi-value" style="color:#8e44ad">${months.length ? totalHoli.toFixed(1) : '-'}</div></div>
+    <div class="kpi"><div class="kpi-label">Mes Pico Vacaciones</div><div class="kpi-value" style="font-size:16px">${peakMo ? `${mlabel(peakMo)} <span style="color:#8e44ad;font-size:14px">(${peakHoli.toFixed(1)} d)</span>` : '-'}</div></div>
+    <div class="kpi"><div class="kpi-label">Mes Menor Revenue</div><div class="kpi-value" style="font-size:16px">${lowMo ? `${mlabel(lowMo)} <span style="color:var(--accent);font-size:14px">${fmtFull(lowRev)}</span>` : '-'}</div></div>`;
+
+  // Combo chart
+  const labels = months.map(m => mlabel(m));
+  const revData = months.map(m => byMonth[m].revenue);
+  const holiData = months.map(m => byMonth[m].holiDays);
+
+  if (drChart) drChart.destroy();
+  if (months.length === 0) {
+    document.getElementById('detRevTableWrap').innerHTML = '<p style="color:var(--text3);padding:20px;text-align:center">Sin datos para los filtros actuales</p>';
+    return;
+  }
+  drChart = new Chart(document.getElementById('detRevChart').getContext('2d'), {
+    data: {
+      labels,
+      datasets: [
+        {
+          type: 'bar', label: 'Revenue', data: revData, yAxisID: 'y',
+          backgroundColor: 'rgba(27,95,168,0.75)', borderColor: '#1B5FA8', borderWidth: 1, borderRadius: 3,
+          order: 2
+        },
+        {
+          type: 'line', label: 'Días vacaciones', data: holiData, yAxisID: 'y1',
+          borderColor: '#8e44ad', backgroundColor: 'rgba(142,68,173,0.15)',
+          borderWidth: 2.5, pointRadius: 4, pointHoverRadius: 6, pointBackgroundColor: '#8e44ad', tension: 0.25,
+          fill: false, order: 1
+        }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { position: 'top', labels: { boxWidth: 12, font: { family: 'Source Sans 3', size: 11 } } },
+        tooltip: {
+          backgroundColor: '#fff', titleColor: '#1a2b3c', bodyColor: '#5a6a7e', borderColor: '#dfe3e8', borderWidth: 1, cornerRadius: 6, padding: 10,
+          callbacks: {
+            label: ctx => {
+              if (ctx.dataset.label === 'Revenue') return `Revenue: ${fmtFull(ctx.raw)}`;
+              return `Días vacaciones: ${ctx.raw.toFixed(1)}`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: { grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { color: '#5a6a7e', font: { family: 'Source Sans 3', size: 11 } }, border: { color: '#dfe3e8' } },
+        y: { position: 'left', grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { color: '#5a6a7e', font: { family: 'JetBrains Mono', size: 11 }, callback: v => fmtFull(v) }, title: { display: true, text: 'Revenue (CLP)', color: '#1B5FA8', font: { family: 'Source Sans 3', size: 12 } }, border: { color: '#dfe3e8' } },
+        y1: { position: 'right', grid: { display: false }, ticks: { color: '#8e44ad', font: { family: 'JetBrains Mono', size: 11 }, callback: v => v + ' d' }, title: { display: true, text: 'Días vacaciones', color: '#8e44ad', font: { family: 'Source Sans 3', size: 12 } }, beginAtZero: true, border: { color: '#dfe3e8' } }
+      },
+      animation: { duration: 400 }
+    }
+  });
+
+  // Monthly table with top-3 consultants on holidays
+  let h = '<table><thead><tr>'
+    + '<th>Mes</th>'
+    + '<th style="text-align:right">Revenue</th>'
+    + '<th style="text-align:right"># Consultores</th>'
+    + '<th style="text-align:right">Días Vacaciones</th>'
+    + '<th>Top consultores en vacaciones</th>'
+    + '</tr></thead><tbody>';
+  months.forEach(m => {
+    const d = byMonth[m];
+    const top = Object.entries(d.perCons).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([n, v]) => `${n} (${v.toFixed(1)})`).join(', ');
+    h += `<tr>`
+      + `<td class="td-mono" style="font-size:12px">${mlabel(m)}</td>`
+      + `<td class="td-mono" style="text-align:right">${fmtFull(d.revenue)}</td>`
+      + `<td class="td-mono" style="text-align:right">${d.consultants.size}</td>`
+      + `<td class="td-mono" style="text-align:right;color:${d.holiDays > 0 ? '#8e44ad' : 'var(--text3)'}">${d.holiDays > 0 ? d.holiDays.toFixed(1) : '0'}</td>`
+      + `<td class="td-name" style="font-size:11px;color:var(--text2)">${top || '<span style="color:var(--text3)">—</span>'}</td>`
+      + `</tr>`;
+  });
+  h += '</tbody></table>';
+  document.getElementById('detRevTableWrap').innerHTML = h;
 }
 
 // ─── Distribución Tab ───

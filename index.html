@@ -85,12 +85,24 @@
       <span onclick="document.getElementById('filterProd1M').click()">Prod &gt; 1M</span>
     </div>
   </div>
+  <div class="filter-group">
+    <label>&nbsp;</label>
+    <div class="filter-check">
+      <input type="checkbox" id="filterHoli5">
+      <span onclick="document.getElementById('filterHoli5').click()">Holidays YTD &gt; 5</span>
+    </div>
+    <div class="filter-check" style="margin-top:4px">
+      <input type="checkbox" id="filterHoli15">
+      <span onclick="document.getElementById('filterHoli15').click()">Holidays YTD &gt; 15</span>
+    </div>
+  </div>
 </div>
 
 <div class="main">
   <div class="tabs">
     <div class="tab active" onclick="switchTab('resumen')">Resumen</div>
-    <div class="tab" onclick="switchTab('detalle')">Detalle</div>
+    <div class="tab" onclick="switchTab('detalle')">Detalle Margen</div>
+    <div class="tab" onclick="switchTab('detalleRev')">Detalle Revenue</div>
     <div class="tab" onclick="switchTab('distribucion')">Distribución</div>
     <div class="tab" onclick="switchTab('consultor')">Consultor</div>
     <div class="tab" onclick="switchTab('calculadora')">Calculadora</div>
@@ -118,6 +130,15 @@
     <div class="card">
       <div class="card-title"><span class="ta">●</span> Margen Histórico por Actividad</div>
       <div class="table-wrap" id="detalleTableWrap" style="max-height:700px"></div>
+    </div>
+  </div>
+
+  <div id="tabDetalleRev" style="display:none">
+    <div class="card">
+      <div class="card-title"><span class="ta">●</span> Evolución Revenue & Holidays — <span id="detRevTitle" style="color:var(--accent);font-weight:700"></span></div>
+      <div class="kpi-row" id="detRevKpis" style="grid-template-columns:repeat(4,1fr)"></div>
+      <div class="chart-container" style="height:420px"><canvas id="detRevChart"></canvas></div>
+      <div class="table-wrap" id="detRevTableWrap" style="margin-top:14px;max-height:420px"></div>
     </div>
   </div>
 

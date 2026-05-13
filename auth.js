@@ -3,7 +3,7 @@
 
 let impCredentials = null; // { url, key } loaded from app_settings after import auth
 
-// ─── Password hashing (SHA-256 via Web Crypto API) ───
+// ─── Password hashing (SHA-256 via Web Crypto API v) ───
 
 async function hashPassword(password) {
   const encoder = new TextEncoder();

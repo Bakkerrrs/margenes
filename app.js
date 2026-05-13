@@ -524,25 +524,32 @@ function switchTab(tab) {
 function refreshDetalleRev() {
   const f = gf();
   const fd = flt(ALL);
-  const months = [...new Set(fd.map(a => a[0]))].sort();
 
-  // Build per-month aggregates
-  const byMonth = {};
-  months.forEach(m => { byMonth[m] = { revenue: 0, holiDays: 0, consultants: new Set(), perCons: {} }; });
+  // Consultants linked to any of the filtered activities in any of their months
+  const linkedCons = new Set();
   fd.forEach(a => {
-    const m = a[0];
-    byMonth[m].revenue += Number(a[6]) || 0;
-    const cons = CONS[`${a[2]}|${m}`] || [];
-    cons.forEach(c => byMonth[m].consultants.add(c[0]));
+    const cons = CONS[`${a[2]}|${a[0]}`] || [];
+    cons.forEach(c => linkedCons.add(c[0]));
   });
-  // Sum holidays per unique consultant of that month, and track per-consultant totals
-  months.forEach(m => {
-    byMonth[m].consultants.forEach(name => {
+
+  // Months: revenue months from filtered activities + holiday months (within FY)
+  // de los consultores ligados — así las vacaciones se imputan al mes calendario
+  // real aunque ese mes el consultor no tenga días en la actividad.
+  const fyMonths = new Set(ALL.filter(a => a[13] === f.fy).map(a => a[0]));
+  const monthSet = new Set(fd.map(a => a[0]));
+  Object.keys(HOLI).forEach(k => {
+    const [name, m] = k.split('|');
+    if (linkedCons.has(name) && fyMonths.has(m)) monthSet.add(m);
+  });
+  const months = [...monthSet].sort();
+
+  const byMonth = {};
+  months.forEach(m => { byMonth[m] = { revenue: 0, holiDays: 0 }; });
+  fd.forEach(a => { byMonth[a[0]].revenue += Number(a[6]) || 0; });
+  linkedCons.forEach(name => {
+    months.forEach(m => {
       const hd = HOLI[`${name}|${m}`] || 0;
-      if (hd > 0) {
-        byMonth[m].holiDays += hd;
-        byMonth[m].perCons[name] = hd;
-      }
+      if (hd > 0) byMonth[m].holiDays += hd;
     });
   });
 

@@ -62,17 +62,20 @@
     <form autocomplete="off" onsubmit="return false" style="margin:0;padding:0;border:0;flex-grow:1">
       <input type="text" name="fake_user" style="display:none" tabindex="-1" aria-hidden="true">
       <input type="password" name="fake_pass" style="display:none" tabindex="-1" aria-hidden="true">
-      <div class="search-wrap">
-        <input type="search" id="filterSearch" name="activity_search" placeholder="Código o descripción…" autocomplete="off" data-1p-ignore data-lpignore="true" data-form-type="other">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8896a6" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <div class="input-row">
+        <div class="search-wrap" style="flex:1">
+          <input type="search" id="filterSearch" name="activity_search" placeholder="Código o descripción…" autocomplete="off" data-1p-ignore data-lpignore="true" data-form-type="other">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8896a6" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        </div>
+        <button type="button" class="filter-clear" onclick="clearFilter('filterSearch')" title="Limpiar filtro">×</button>
       </div>
     </form>
   </div>
   <div class="filter-group"><label>Año Fiscal</label><select id="filterFY"></select></div>
-  <div class="filter-group"><label>BU</label><select id="filterBU"><option value="">Todas</option></select></div>
-  <div class="filter-group"><label>Tipo-AT</label><select id="filterTipoAT"><option value="">Todas</option></select></div>
-  <div class="filter-group"><label>Customer</label><select id="filterCustomer"><option value="">Todas</option></select></div>
-  <div class="filter-group"><label>Jefatura</label><select id="filterJefatura"><option value="">Todas</option></select></div>
+  <div class="filter-group"><label>BU</label><div class="input-row"><select id="filterBU"><option value="">Todas</option></select><button type="button" class="filter-clear" onclick="clearFilter('filterBU')" title="Limpiar filtro">×</button></div></div>
+  <div class="filter-group"><label>Tipo-AT</label><div class="input-row"><select id="filterTipoAT"><option value="">Todas</option></select><button type="button" class="filter-clear" onclick="clearFilter('filterTipoAT')" title="Limpiar filtro">×</button></div></div>
+  <div class="filter-group"><label>Customer</label><div class="input-row"><select id="filterCustomer"><option value="">Todas</option></select><button type="button" class="filter-clear" onclick="clearFilter('filterCustomer')" title="Limpiar filtro">×</button></div></div>
+  <div class="filter-group"><label>Jefatura</label><div class="input-row"><select id="filterJefatura"><option value="">Todas</option></select><button type="button" class="filter-clear" onclick="clearFilter('filterJefatura')" title="Limpiar filtro">×</button></div></div>
   <div class="filter-group"><label>Mes Detalle</label><select id="filterMonth"></select></div>
   <div class="filter-group">
     <label>&nbsp;</label>

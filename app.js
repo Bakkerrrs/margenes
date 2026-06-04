@@ -193,9 +193,7 @@ async function loadData() {
 // ─── UI initialization (runs after data is loaded) ───
 
 function initUI() {
-  const fySel = document.getElementById('filterFY');
-  F.fy.forEach(fy => { fySel.innerHTML += `<option value="${fy}">${fy}</option>`; });
-  fySel.value = F.fy[F.fy.length - 1];
+  buildFYOptions();
 
   // BU, TipoAT, Customer, Jefatura and Month filters are populated dynamically in onFYChange()
 
@@ -204,9 +202,14 @@ function initUI() {
   ).join('') +
     '<div class="legend-item" style="margin-left:12px"><div style="width:16px;height:16px;border-radius:4px;background:rgba(2,147,28,0.12);display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#02931C;font-family:JetBrains Mono">%</div><span style="font-weight:600;color:var(--text2)">Margen Ponderado</span></div>';
 
-  ['filterFY', 'filterBU', 'filterTipoAT', 'filterCustomer', 'filterJefatura', 'filterMonth'].forEach(id =>
-    document.getElementById(id).addEventListener('change', id === 'filterFY' ? onFYChange : refresh)
+  ['filterBU', 'filterTipoAT', 'filterCustomer', 'filterJefatura', 'filterMonth'].forEach(id =>
+    document.getElementById(id).addEventListener('change', refresh)
   );
+  // Close the Año Fiscal multi-select dropdown when clicking outside it
+  document.addEventListener('click', e => {
+    const wrap = document.getElementById('filterFYWrap');
+    if (wrap && !wrap.contains(e.target)) wrap.classList.remove('open');
+  });
   document.getElementById('filterProdPos').addEventListener('change', refresh);
   document.getElementById('filterProd1M').addEventListener('change', refresh);
   document.getElementById('filterHoli5').addEventListener('change', refresh);
@@ -235,10 +238,47 @@ function clearFilter(id) {
 
 // ─── Filters & helpers ───
 
+// ─── Año Fiscal multi-select ───
+
+function buildFYOptions() {
+  const wrap = document.getElementById('filterFYOptions');
+  const latest = F.fy[F.fy.length - 1];
+  wrap.innerHTML = F.fy.map(fy =>
+    `<label class="ms-option"><input type="checkbox" class="fyCheck" value="${fy}" onchange="onFYChange()"${fy === latest ? ' checked' : ''}> ${fy}</label>`
+  ).join('');
+}
+
+// Resolved list of selected fiscal years. If nothing is checked we fall back to
+// all years so the dashboard is never blank.
+function getSelectedFYs() {
+  const checked = [...document.querySelectorAll('.fyCheck:checked')].map(cb => cb.value);
+  return checked.length ? checked : F.fy.slice();
+}
+
+function fyLabel(sel) {
+  if (sel.length === 0 || sel.length === F.fy.length) return 'Todos';
+  return sel.length <= 2 ? sel.join(', ') : `${sel.length} años`;
+}
+
+function toggleFYDropdown(e) {
+  e.stopPropagation();
+  const wrap = document.getElementById('filterFYWrap');
+  const open = wrap.classList.toggle('open');
+  document.getElementById('filterFYToggle').setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+
+function fySelectAll(state) {
+  document.querySelectorAll('.fyCheck').forEach(cb => { cb.checked = state; });
+  onFYChange();
+}
+
 function onFYChange() {
-  const fy = document.getElementById('filterFY').value;
-  document.getElementById('fyBadge').textContent = 'FY ' + fy;
-  const fyData = ALL.filter(a => a[13] === fy);
+  const selFYs = getSelectedFYs();
+  const fySet = new Set(selFYs);
+  const allSelected = selFYs.length === F.fy.length;
+  document.getElementById('filterFYLabel').textContent = fyLabel(selFYs);
+  document.getElementById('fyBadge').textContent = allSelected ? 'Todos los FY' : 'FY ' + selFYs.join(' · ');
+  const fyData = ALL.filter(a => fySet.has(a[13]));
 
   function updateSelect(id, values, prevVal, allLabel) {
     const sel = document.getElementById(id);
@@ -269,7 +309,7 @@ function onFYChange() {
 
 function gf() {
   return {
-    fy: document.getElementById('filterFY').value,
+    fy: getSelectedFYs(),
     bu: document.getElementById('filterBU').value,
     ta: document.getElementById('filterTipoAT').value,
     cu: document.getElementById('filterCustomer').value,
@@ -285,7 +325,8 @@ function gf() {
 
 // Build map { consultantName: total holidays in selected FY }
 function buildHolidaysYTD(fy) {
-  const fyMonths = new Set(ALL.filter(a => a[13] === fy).map(a => a[0]));
+  const fySet = new Set(Array.isArray(fy) ? fy : [fy]);
+  const fyMonths = new Set(ALL.filter(a => fySet.has(a[13])).map(a => a[0]));
   const out = {};
   Object.keys(HOLI).forEach(k => {
     const [name, month] = k.split('|');
@@ -297,11 +338,12 @@ function buildHolidaysYTD(fy) {
 
 function flt(data) {
   const f = gf();
+  const fySet = new Set(f.fy);
   const needHoliFilter = f.holi5 || f.holi15;
   const ytdHoli = needHoliFilter ? buildHolidaysYTD(f.fy) : null;
   const threshold = f.holi15 ? 15 : (f.holi5 ? 5 : 0);
   return data.filter(a => {
-    if (a[13] !== f.fy) return false;
+    if (!fySet.has(a[13])) return false;
     if (f.bu && a[5] !== f.bu) return false;
     if (f.ta && a[4] !== f.ta) return false;
     if (f.cu && a[1] !== f.cu) return false;
@@ -535,7 +577,8 @@ function refreshDetalleRev() {
   // Months: revenue months from filtered activities + holiday months (within FY)
   // de los consultores ligados — así las vacaciones se imputan al mes calendario
   // real aunque ese mes el consultor no tenga días en la actividad.
-  const fyMonths = new Set(ALL.filter(a => a[13] === f.fy).map(a => a[0]));
+  const fySet = new Set(f.fy);
+  const fyMonths = new Set(ALL.filter(a => fySet.has(a[13])).map(a => a[0]));
   const monthSet = new Set(fd.map(a => a[0]));
   Object.keys(HOLI).forEach(k => {
     const [name, m] = k.split('|');
@@ -558,8 +601,9 @@ function refreshDetalleRev() {
   if (f.q) titleParts.push(`"${f.q}"`);
   if (f.cu) titleParts.push(f.cu);
   if (f.bu) titleParts.push(f.bu);
-  if (titleParts.length === 0) titleParts.push(`Todas las actividades · FY ${f.fy}`);
-  else titleParts.push(`FY ${f.fy}`);
+  const fyTitle = f.fy.length === F.fy.length ? 'Todos los FY' : 'FY ' + f.fy.join(' · ');
+  if (titleParts.length === 0) titleParts.push(`Todas las actividades · ${fyTitle}`);
+  else titleParts.push(fyTitle);
   document.getElementById('detRevTitle').textContent = titleParts.join(' · ');
 
   // KPIs

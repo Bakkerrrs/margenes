@@ -30,6 +30,22 @@ body{font-family:'Source Sans 3',-apple-system,BlinkMacSystemFont,sans-serif;bac
 .search-wrap input:focus{outline:none;border-color:var(--accent2);box-shadow:0 0 0 2px rgba(27,95,168,0.12)}
 .search-wrap svg{position:absolute;left:8px;top:50%;transform:translateY(-50%);pointer-events:none}
 .input-row{display:flex;align-items:stretch;gap:4px}
+/* Multi-select dropdown (Año Fiscal) */
+.ms-dropdown{position:relative;min-width:150px}
+.ms-toggle{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;background:var(--surface);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:6px;font-size:13px;font-family:'Source Sans 3',sans-serif;cursor:pointer;transition:border-color 0.15s}
+.ms-toggle:hover{border-color:var(--accent2)}
+.ms-dropdown.open .ms-toggle{border-color:var(--accent2);box-shadow:0 0 0 2px rgba(27,95,168,0.12)}
+.ms-toggle span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ms-toggle svg{flex-shrink:0;transition:transform 0.15s}
+.ms-dropdown.open .ms-toggle svg{transform:rotate(180deg)}
+.ms-panel{display:none;position:absolute;top:calc(100% + 4px);left:0;z-index:50;min-width:100%;background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:0 6px 24px rgba(26,43,60,0.14);padding:6px;max-height:280px;overflow-y:auto}
+.ms-dropdown.open .ms-panel{display:block}
+.ms-actions{display:flex;gap:6px;padding:2px 4px 6px;border-bottom:1px solid var(--border2);margin-bottom:4px}
+.ms-actions button{flex:1;background:var(--surface2);border:1px solid var(--border);color:var(--text2);font-size:11px;font-weight:600;padding:4px 6px;border-radius:5px;cursor:pointer;font-family:inherit;transition:all 0.15s}
+.ms-actions button:hover{background:var(--accent-light);color:var(--accent);border-color:var(--accent2)}
+.ms-option{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:5px;cursor:pointer;user-select:none;font-size:13px;color:var(--text);white-space:nowrap}
+.ms-option:hover{background:var(--surface2)}
+.ms-option input[type=checkbox]{width:15px;height:15px;accent-color:var(--accent);cursor:pointer;flex-shrink:0}
 .filter-clear{background:var(--surface);border:1px solid var(--border);color:var(--text3);min-width:26px;cursor:pointer;border-radius:6px;font-size:15px;line-height:1;padding:0 6px;font-weight:600;transition:all 0.15s;font-family:inherit}
 .filter-clear:hover{background:var(--surface2);color:#c0392b;border-color:#c0392b}
 

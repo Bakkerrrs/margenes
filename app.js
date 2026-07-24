@@ -903,10 +903,16 @@ function refreshProyeccion() {
   const totalLastReal = lastReal.reduce((s, v) => s + v, 0);
   const varPct = (n >= p.H && totalLastReal !== 0) ? (totalProj / totalLastReal - 1) * 100 : null;
   const varColor = varPct == null ? 'var(--text3)' : (varPct < 0 ? '#c0392b' : '#229954');
+  // Rolling 12-month total ending at the last projected month
+  // (projected values + as many trailing real months as needed to reach 12)
+  const combined = [...vals, ...proj.map(r => r.value)];
+  const rolling12 = combined.slice(-12).reduce((s, v) => s + v, 0);
+  const lastProjMonth = proj[proj.length - 1].month;
   document.getElementById('projKpis').innerHTML = `
     <div class="kpi"><div class="kpi-label">Último Mes Real</div><div class="kpi-value" style="font-size:16px">${mlabel(anchor)} <span style="color:var(--accent);font-size:14px">${fmtFull(vals[n - 1])}</span></div></div>
     <div class="kpi"><div class="kpi-label">Promedio Últimos 12M</div><div class="kpi-value">${fmtFull(avg12)}</div></div>
     <div class="kpi"><div class="kpi-label">Total Proyectado (${p.H} meses)</div><div class="kpi-value" style="color:#E66C37">${fmtFull(totalProj)}</div></div>
+    <div class="kpi" title="Suma los 12 meses que terminan en ${mlabel(lastProjMonth)}: los ${p.H} proyectados + los ${Math.max(0, Math.min(12 - p.H, n))} reales anteriores"><div class="kpi-label">Total 12M al ${mlabel(lastProjMonth)}</div><div class="kpi-value" style="color:#E66C37">${fmtFull(rolling12)}</div></div>
     <div class="kpi"><div class="kpi-label">Variación vs Últimos ${p.H} Reales</div><div class="kpi-value" style="color:${varColor}">${varPct == null ? '-' : (varPct >= 0 ? '+' : '') + varPct.toFixed(1) + '%'}</div></div>`;
 
   // Chart: historical bars (blue) + projected bars (orange), one combined axis

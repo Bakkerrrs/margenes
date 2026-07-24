@@ -189,6 +189,16 @@
               <option value="yoy">Mismo mes año anterior</option>
             </select>
           </label>
+          <div class="proj-info-wrap" id="projInfoWrap">
+            <button type="button" class="proj-info-btn" onclick="toggleProjInfo(event)" title="Ayuda: métodos de proyección" aria-haspopup="true" aria-expanded="false">?</button>
+            <div class="proj-info-panel" id="projInfoPanel">
+              <p class="proj-info-intro">La proyección parte del último mes real de los datos filtrados y agrega los meses del <b>Horizonte</b>. Respeta todos los filtros de la barra superior.</p>
+              <div class="proj-info-item"><b><span class="proj-dot" style="background:#1B5FA8"></span>Promedio móvil</b>Promedia los últimos <b>N</b> meses reales (ajusta <b>Ventana N</b>) y mantiene ese valor. Útil con venta estable.</div>
+              <div class="proj-info-item"><b><span class="proj-dot" style="background:#E66C37"></span>Tasa de crecimiento</b>Parte del último mes real y aplica el <b>Crecimiento %</b> compuesto mes a mes. Útil si esperas expansión o contracción sostenida (admite % negativo).</div>
+              <div class="proj-info-item"><b><span class="proj-dot" style="background:#8e44ad"></span>Regresión lineal</b>Extiende la tendencia de todo el histórico filtrado. Sin parámetro extra: cambia los años fiscales seleccionados para acotar la ventana.</div>
+              <div class="proj-info-item"><b><span class="proj-dot" style="background:#229954"></span>Mismo mes año anterior</b>Usa el mismo mes del año pasado ± <b>Ajuste %</b> (captura estacionalidad). Si no hay dato de ese mes, usa promedio 3M y lo marca con <b>*</b> en la tabla.</div>
+            </div>
+          </div>
           <label style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:0.6px;display:flex;align-items:center;gap:6px">Horizonte (meses)
             <input type="number" id="projHorizon" class="calc-input" value="6" min="1" max="12" step="1" oninput="refreshProyeccion()" autocomplete="off" data-1p-ignore data-lpignore="true" data-form-type="other" style="width:64px;text-align:right">
           </label>

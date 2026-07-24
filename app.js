@@ -207,9 +207,9 @@ function initUI() {
   ['filterBU', 'filterTipoAT', 'filterJefatura', 'filterMonth'].forEach(id =>
     document.getElementById(id).addEventListener('change', refresh)
   );
-  // Close the multi-select dropdowns (Año Fiscal, Customer) when clicking outside them
+  // Close the floating panels (Año Fiscal, Customer, ayuda de Proyección) when clicking outside them
   document.addEventListener('click', e => {
-    ['filterFYWrap', 'filterCUWrap'].forEach(id => {
+    ['filterFYWrap', 'filterCUWrap', 'projInfoWrap'].forEach(id => {
       const wrap = document.getElementById(id);
       if (wrap && !wrap.contains(e.target)) wrap.classList.remove('open');
     });
@@ -850,6 +850,13 @@ function computeProjection(months, byMonth, byMonthAll, p) {
     out.push({ month, value: Math.max(0, Math.round(v)), fallback });
   }
   return out;
+}
+
+function toggleProjInfo(e) {
+  e.stopPropagation();
+  const wrap = document.getElementById('projInfoWrap');
+  const open = wrap.classList.toggle('open');
+  wrap.querySelector('.proj-info-btn').setAttribute('aria-expanded', open ? 'true' : 'false');
 }
 
 function projMethodChanged() {

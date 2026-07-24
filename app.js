@@ -17,6 +17,8 @@ const RANGES = [
 
 const MNAMES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 function mlabel(m) { const [y, mm] = m.split('-'); return MNAMES[parseInt(mm) - 1] + ' ' + y; }
+// 'YYYY-MM' ± k months (k can be negative), keeping the zero-padded format
+function addMonths(m, k) { const [y, mm] = m.split('-').map(Number); const t = y * 12 + (mm - 1) + k; return Math.floor(t / 12) + '-' + String(t % 12 + 1).padStart(2, '0'); }
 
 // Data arrays (populated from Supabase)
 let ALL = [];   // actividades as arrays matching original format
@@ -25,7 +27,7 @@ let HOLI = {};   // holidays keyed by "employee|month" → total dias
 let CONS_RAW = []; // raw consultores rows for Consultor tab
 let F = { fy: [], bu: [], ta: [], cu: [], je: [] };  // filter options
 
-let sChart, hChart, dChart, drChart;
+let sChart, hChart, dChart, drChart, pChart;
 let sortCol = 8, sortDir = 'asc';
 let detSortCol = 'ad', detSortDir = 'asc';
 let detRevSortCol = 'rev', detRevSortDir = 'desc';
@@ -389,7 +391,7 @@ function buildHolidaysYTD(fy) {
   return out;
 }
 
-function flt(data) {
+function flt(data, opts = {}) {
   const f = gf();
   const fySet = new Set(f.fy);
   const cuSet = f.cu.length ? new Set(f.cu) : null;
@@ -397,7 +399,7 @@ function flt(data) {
   const ytdHoli = needHoliFilter ? buildHolidaysYTD(f.fy) : null;
   const threshold = f.holi15 ? 15 : (f.holi5 ? 5 : 0);
   return data.filter(a => {
-    if (!fySet.has(a[13])) return false;
+    if (!opts.ignoreFY && !fySet.has(a[13])) return false;
     if (f.bu && a[5] !== f.bu) return false;
     if (f.ta && a[4] !== f.ta) return false;
     if (cuSet && !cuSet.has(a[1])) return false;
@@ -539,6 +541,7 @@ function refresh() {
   renderTable(filtered, f.month);
   if (activeTab === 'detalle') refreshDetalle();
   if (activeTab === 'detalleRev') refreshDetalleRev();
+  if (activeTab === 'proyeccion') refreshProyeccion();
   if (activeTab === 'distribucion') refreshDistribucion();
 }
 
@@ -604,12 +607,14 @@ function switchTab(tab) {
   document.getElementById('tabResumen').style.display = tab === 'resumen' ? '' : 'none';
   document.getElementById('tabDetalle').style.display = tab === 'detalle' ? '' : 'none';
   document.getElementById('tabDetalleRev').style.display = tab === 'detalleRev' ? '' : 'none';
+  document.getElementById('tabProyeccion').style.display = tab === 'proyeccion' ? '' : 'none';
   document.getElementById('tabDistribucion').style.display = tab === 'distribucion' ? '' : 'none';
   document.getElementById('tabConsultor').style.display = tab === 'consultor' ? '' : 'none';
   document.getElementById('tabCalculadora').style.display = tab === 'calculadora' ? '' : 'none';
   document.getElementById('tabImportar').style.display = tab === 'importar' ? '' : 'none';
   if (tab === 'detalle') refreshDetalle();
   if (tab === 'detalleRev') refreshDetalleRev();
+  if (tab === 'proyeccion') refreshProyeccion();
   if (tab === 'distribucion') { refreshDistribucion(); distribInitKeyboardPan(); }
   if (tab === 'consultor') initConsultorTab();
   if (tab === 'calculadora') initCalculadoraTab();
@@ -787,6 +792,192 @@ function detRevSort(col) {
   if (detRevSortCol === col) detRevSortDir = detRevSortDir === 'asc' ? 'desc' : 'asc';
   else { detRevSortCol = col; detRevSortDir = (col === 'act' || col === 'cons') ? 'asc' : 'desc'; }
   refreshDetalleRev();
+}
+
+// ─── Proyección Tab ───
+
+function projParams() {
+  const method = document.getElementById('projMethod').value;
+  const hIn = parseInt(document.getElementById('projHorizon').value, 10);
+  const nIn = parseInt(document.getElementById('projN').value, 10);
+  const gIn = parseFloat(document.getElementById('projGrowth').value);
+  const adjIn = parseFloat(document.getElementById('projAdj').value);
+  return {
+    method,
+    H: isNaN(hIn) ? 6 : Math.min(12, Math.max(1, hIn)),
+    N: isNaN(nIn) ? 3 : Math.min(24, Math.max(1, nIn)),
+    g: isNaN(gIn) ? 2 : gIn,
+    adj: isNaN(adjIn) ? 0 : adjIn
+  };
+}
+
+function buildRevSeries(rows) {
+  const byMonth = {};
+  rows.forEach(a => { byMonth[a[0]] = (byMonth[a[0]] || 0) + (Number(a[6]) || 0); });
+  return { months: Object.keys(byMonth).sort(), byMonth };
+}
+
+// Pure projection: returns [{month, value, fallback}] of length p.H.
+// byMonthAll is the all-years series (other filters applied) used only for
+// the "mismo mes año anterior" lookup, since the FY filter hides those months.
+function computeProjection(months, byMonth, byMonthAll, p) {
+  const n = months.length;
+  const vals = months.map(m => byMonth[m]);
+  const anchor = months[n - 1];
+  const avgLast = w => { const s = vals.slice(-Math.min(w, n)); return s.reduce((a, b) => a + b, 0) / s.length; };
+
+  // Linear regression coefficients over the full filtered history
+  let linA = 0, linB = 0;
+  if (p.method === 'reglin' && n >= 2) {
+    let sx = 0, sy = 0, sxy = 0, sxx = 0;
+    vals.forEach((y, x) => { sx += x; sy += y; sxy += x * y; sxx += x * x; });
+    linB = (n * sxy - sx * sy) / (n * sxx - sx * sx);
+    linA = (sy - linB * sx) / n;
+  }
+
+  const out = [];
+  for (let k = 1; k <= p.H; k++) {
+    const month = addMonths(anchor, k);
+    let v, fallback = false;
+    if (p.method === 'movil') v = avgLast(p.N);
+    else if (p.method === 'growth') v = vals[n - 1] * Math.pow(1 + p.g / 100, k);
+    else if (p.method === 'reglin') v = n >= 2 ? linA + linB * (n - 1 + k) : vals[n - 1];
+    else { // yoy
+      const prev = byMonthAll[addMonths(month, -12)];
+      if (prev != null) v = prev * (1 + p.adj / 100);
+      else { v = avgLast(3); fallback = true; }
+    }
+    out.push({ month, value: Math.max(0, Math.round(v)), fallback });
+  }
+  return out;
+}
+
+function projMethodChanged() {
+  const method = document.getElementById('projMethod').value;
+  document.getElementById('projNWrap').style.display = method === 'movil' ? 'flex' : 'none';
+  document.getElementById('projGrowthWrap').style.display = method === 'growth' ? 'flex' : 'none';
+  document.getElementById('projAdjWrap').style.display = method === 'yoy' ? 'flex' : 'none';
+  refreshProyeccion();
+}
+
+function refreshProyeccion() {
+  const f = gf();
+  const p = projParams();
+  const { months, byMonth } = buildRevSeries(flt(ALL));
+
+  // Title (same convention as Detalle Revenue)
+  const titleParts = [];
+  if (f.q) titleParts.push(`"${f.q}"`);
+  if (f.cu.length) titleParts.push(f.cu.length <= 2 ? f.cu.join(' · ') : `${f.cu.length} clientes`);
+  if (f.bu) titleParts.push(f.bu);
+  const fyTitle = f.fy.length === F.fy.length ? 'Todos los FY' : 'FY ' + f.fy.join(' · ');
+  if (titleParts.length === 0) titleParts.push(`Todas las actividades · ${fyTitle}`);
+  else titleParts.push(fyTitle);
+  document.getElementById('projTitle').textContent = titleParts.join(' · ');
+
+  if (pChart) pChart.destroy();
+  if (months.length === 0) {
+    document.getElementById('projKpis').innerHTML = '';
+    document.getElementById('projTableWrap').innerHTML = '<p style="color:var(--text3);padding:20px;text-align:center">Sin datos para los filtros actuales</p>';
+    return;
+  }
+
+  const byMonthAll = p.method === 'yoy' ? buildRevSeries(flt(ALL, { ignoreFY: true })).byMonth : {};
+  const proj = computeProjection(months, byMonth, byMonthAll, p);
+
+  const n = months.length;
+  const vals = months.map(m => byMonth[m]);
+  const anchor = months[n - 1];
+
+  // KPIs
+  const avg12 = vals.slice(-12).reduce((s, v) => s + v, 0) / Math.min(12, n);
+  const totalProj = proj.reduce((s, r) => s + r.value, 0);
+  const lastReal = vals.slice(-p.H);
+  const totalLastReal = lastReal.reduce((s, v) => s + v, 0);
+  const varPct = (n >= p.H && totalLastReal !== 0) ? (totalProj / totalLastReal - 1) * 100 : null;
+  const varColor = varPct == null ? 'var(--text3)' : (varPct < 0 ? '#c0392b' : '#229954');
+  document.getElementById('projKpis').innerHTML = `
+    <div class="kpi"><div class="kpi-label">Último Mes Real</div><div class="kpi-value" style="font-size:16px">${mlabel(anchor)} <span style="color:var(--accent);font-size:14px">${fmtFull(vals[n - 1])}</span></div></div>
+    <div class="kpi"><div class="kpi-label">Promedio Últimos 12M</div><div class="kpi-value">${fmtFull(avg12)}</div></div>
+    <div class="kpi"><div class="kpi-label">Total Proyectado (${p.H} meses)</div><div class="kpi-value" style="color:#E66C37">${fmtFull(totalProj)}</div></div>
+    <div class="kpi"><div class="kpi-label">Variación vs Últimos ${p.H} Reales</div><div class="kpi-value" style="color:${varColor}">${varPct == null ? '-' : (varPct >= 0 ? '+' : '') + varPct.toFixed(1) + '%'}</div></div>`;
+
+  // Chart: historical bars (blue) + projected bars (orange), one combined axis
+  const allMonths = [...months, ...proj.map(r => r.month)];
+  const labels = allMonths.map(m => mlabel(m));
+  const realData = [...vals, ...proj.map(() => null)];
+  const projData = [...vals.map(() => null), ...proj.map(r => r.value)];
+
+  // Dashed divider between the last real month and the first projected one
+  const dividerPlugin = {
+    id: 'projDivider',
+    afterDatasetsDraw(chart) {
+      const xAxis = chart.scales.x, yAxis = chart.scales.y;
+      if (!xAxis || n === 0 || n >= allMonths.length) return;
+      const x = (xAxis.getPixelForValue(n - 1) + xAxis.getPixelForValue(n)) / 2;
+      const ctx = chart.ctx;
+      ctx.save();
+      ctx.strokeStyle = 'rgba(230,108,55,0.6)';
+      ctx.setLineDash([5, 4]);
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(x, yAxis.top);
+      ctx.lineTo(x, yAxis.bottom);
+      ctx.stroke();
+      ctx.restore();
+    }
+  };
+
+  pChart = new Chart(document.getElementById('projChart').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Real', data: realData, backgroundColor: 'rgba(27,95,168,0.75)', borderColor: '#1B5FA8', borderWidth: 1, borderRadius: 3 },
+        { label: 'Proyectado', data: projData, backgroundColor: 'rgba(230,108,55,0.30)', borderColor: '#E66C37', borderWidth: 1.5, borderRadius: 3 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { position: 'top', labels: { boxWidth: 12, font: { family: 'Source Sans 3', size: 11 } } },
+        tooltip: {
+          backgroundColor: '#fff', titleColor: '#1a2b3c', bodyColor: '#5a6a7e', borderColor: '#dfe3e8', borderWidth: 1, cornerRadius: 6, padding: 10,
+          callbacks: { label: ctx => ctx.raw == null ? null : `${ctx.dataset.label}: ${fmtFull(ctx.raw)}` }
+        }
+      },
+      scales: {
+        x: { grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { color: '#5a6a7e', font: { family: 'Source Sans 3', size: 11 } }, border: { color: '#dfe3e8' } },
+        y: { position: 'left', grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { color: '#5a6a7e', font: { family: 'JetBrains Mono', size: 11 }, callback: v => fmt(v) }, title: { display: true, text: 'Revenue (CLP)', color: '#1B5FA8', font: { family: 'Source Sans 3', size: 12 } }, border: { color: '#dfe3e8' }, beginAtZero: true }
+      },
+      animation: { duration: 400 }
+    },
+    plugins: [dividerPlugin]
+  });
+
+  // Month-by-month table
+  const rows = [
+    ...months.map(m => ({ month: m, value: byMonth[m], real: true, fallback: false })),
+    ...proj.map(r => ({ month: r.month, value: r.value, real: false, fallback: r.fallback }))
+  ];
+  let h = '<table><thead><tr><th>Mes</th><th style="text-align:right">Revenue</th><th style="text-align:right">Δ% vs mes anterior</th><th>Tipo</th></tr></thead><tbody>';
+  rows.forEach((r, i) => {
+    const prev = i > 0 ? rows[i - 1].value : null;
+    const delta = (prev != null && prev !== 0) ? (r.value / prev - 1) * 100 : null;
+    const deltaTxt = delta == null ? '<span style="color:var(--text3)">—</span>'
+      : `<span style="color:${delta < 0 ? '#c0392b' : '#229954'}">${delta >= 0 ? '+' : ''}${delta.toFixed(1)}%</span>`;
+    const badge = r.real
+      ? '<span style="background:rgba(27,95,168,0.12);color:#1B5FA8;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600">Real</span>'
+      : `<span style="background:rgba(230,108,55,0.12);color:#E66C37;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600"${r.fallback ? ' title="Sin dato año anterior — se usó promedio móvil 3M"' : ''}>Proyectado${r.fallback ? ' *' : ''}</span>`;
+    h += `<tr${r.real ? '' : ' style="background:rgba(230,108,55,0.06)"'}>`
+      + `<td>${mlabel(r.month)}</td>`
+      + `<td class="td-mono" style="text-align:right">${fmtFull(r.value)}</td>`
+      + `<td class="td-mono" style="text-align:right">${deltaTxt}</td>`
+      + `<td>${badge}</td></tr>`;
+  });
+  h += '</tbody></table>';
+  document.getElementById('projTableWrap').innerHTML = h;
 }
 
 // ─── Distribución Tab ───

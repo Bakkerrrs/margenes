@@ -136,6 +136,7 @@
     <div class="tab active" onclick="switchTab('resumen')">Resumen</div>
     <div class="tab" onclick="switchTab('detalle')">Detalle Margen</div>
     <div class="tab" onclick="switchTab('detalleRev')">Detalle Revenue</div>
+    <div class="tab" onclick="switchTab('proyeccion')">Proyección</div>
     <div class="tab" onclick="switchTab('distribucion')">Distribución</div>
     <div class="tab" onclick="switchTab('consultor')">Consultor</div>
     <div class="tab" onclick="switchTab('calculadora')">Calculadora</div>
@@ -172,6 +173,39 @@
       <div class="kpi-row" id="detRevKpis" style="grid-template-columns:repeat(4,1fr)"></div>
       <div class="chart-container" style="height:420px"><canvas id="detRevChart"></canvas></div>
       <div class="table-wrap" id="detRevTableWrap" style="margin-top:14px;max-height:420px"></div>
+    </div>
+  </div>
+
+  <div id="tabProyeccion" style="display:none">
+    <div class="card">
+      <div class="card-title" style="justify-content:space-between">
+        <span><span class="ta">●</span> Proyección de Revenue — <span id="projTitle" style="color:var(--accent);font-weight:700"></span></span>
+        <div style="display:flex;gap:14px;align-items:center;font-weight:400;flex-wrap:wrap">
+          <label style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:0.6px;display:flex;align-items:center;gap:6px">Método
+            <select id="projMethod" class="calc-input" onchange="projMethodChanged()" style="width:190px">
+              <option value="movil">Promedio móvil</option>
+              <option value="growth">Tasa de crecimiento</option>
+              <option value="reglin">Regresión lineal</option>
+              <option value="yoy">Mismo mes año anterior</option>
+            </select>
+          </label>
+          <label style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:0.6px;display:flex;align-items:center;gap:6px">Horizonte (meses)
+            <input type="number" id="projHorizon" class="calc-input" value="6" min="1" max="12" step="1" oninput="refreshProyeccion()" autocomplete="off" data-1p-ignore data-lpignore="true" data-form-type="other" style="width:64px;text-align:right">
+          </label>
+          <label id="projNWrap" style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:0.6px;display:flex;align-items:center;gap:6px">Ventana N
+            <input type="number" id="projN" class="calc-input" value="3" min="1" max="24" step="1" oninput="refreshProyeccion()" autocomplete="off" data-1p-ignore data-lpignore="true" data-form-type="other" style="width:64px;text-align:right">
+          </label>
+          <label id="projGrowthWrap" style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:0.6px;display:none;align-items:center;gap:6px">Crecimiento %
+            <input type="number" id="projGrowth" class="calc-input" value="2" step="0.5" oninput="refreshProyeccion()" autocomplete="off" data-1p-ignore data-lpignore="true" data-form-type="other" style="width:72px;text-align:right">
+          </label>
+          <label id="projAdjWrap" style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:0.6px;display:none;align-items:center;gap:6px">Ajuste %
+            <input type="number" id="projAdj" class="calc-input" value="0" step="1" oninput="refreshProyeccion()" autocomplete="off" data-1p-ignore data-lpignore="true" data-form-type="other" style="width:72px;text-align:right">
+          </label>
+        </div>
+      </div>
+      <div class="kpi-row" id="projKpis" style="grid-template-columns:repeat(4,1fr)"></div>
+      <div class="chart-container" style="height:420px"><canvas id="projChart"></canvas></div>
+      <div class="table-wrap" id="projTableWrap" style="margin-top:14px;max-height:420px"></div>
     </div>
   </div>
 

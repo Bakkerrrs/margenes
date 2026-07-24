@@ -202,13 +202,15 @@ function initUI() {
   ).join('') +
     '<div class="legend-item" style="margin-left:12px"><div style="width:16px;height:16px;border-radius:4px;background:rgba(2,147,28,0.12);display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#02931C;font-family:JetBrains Mono">%</div><span style="font-weight:600;color:var(--text2)">Margen Ponderado</span></div>';
 
-  ['filterBU', 'filterTipoAT', 'filterCustomer', 'filterJefatura', 'filterMonth'].forEach(id =>
+  ['filterBU', 'filterTipoAT', 'filterJefatura', 'filterMonth'].forEach(id =>
     document.getElementById(id).addEventListener('change', refresh)
   );
-  // Close the Año Fiscal multi-select dropdown when clicking outside it
+  // Close the multi-select dropdowns (Año Fiscal, Customer) when clicking outside them
   document.addEventListener('click', e => {
-    const wrap = document.getElementById('filterFYWrap');
-    if (wrap && !wrap.contains(e.target)) wrap.classList.remove('open');
+    ['filterFYWrap', 'filterCUWrap'].forEach(id => {
+      const wrap = document.getElementById(id);
+      if (wrap && !wrap.contains(e.target)) wrap.classList.remove('open');
+    });
   });
   document.getElementById('filterProdPos').addEventListener('change', refresh);
   document.getElementById('filterProd1M').addEventListener('change', refresh);
@@ -272,6 +274,57 @@ function fySelectAll(state) {
   onFYChange();
 }
 
+// ─── Customer multi-select ───
+
+function escHtml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// Rebuild the customer checkbox list (called on every FY change since the
+// available customers depend on the selected fiscal years). Previously
+// checked customers stay checked if they still exist in the new list.
+function buildCUOptions(values) {
+  const prev = new Set(getCheckedCUs());
+  const wrap = document.getElementById('filterCUOptions');
+  wrap.innerHTML = values.map(cu =>
+    `<label class="ms-option"><input type="checkbox" class="cuCheck" value="${escHtml(cu)}" onchange="onCUChange()"${prev.has(cu) ? ' checked' : ''}> ${escHtml(cu)}</label>`
+  ).join('');
+  updateCULabel();
+}
+
+// Checked customers. Empty selection means "no filter" (all customers),
+// mirroring the Año Fiscal fallback so the dashboard is never blank.
+function getCheckedCUs() {
+  return [...document.querySelectorAll('.cuCheck:checked')].map(cb => cb.value);
+}
+
+function cuLabel(sel) {
+  const total = document.querySelectorAll('.cuCheck').length;
+  if (sel.length === 0 || sel.length === total) return 'Todas';
+  return sel.length <= 2 ? sel.join(', ') : `${sel.length} clientes`;
+}
+
+function updateCULabel() {
+  document.getElementById('filterCULabel').textContent = cuLabel(getCheckedCUs());
+}
+
+function toggleCUDropdown(e) {
+  e.stopPropagation();
+  const wrap = document.getElementById('filterCUWrap');
+  const open = wrap.classList.toggle('open');
+  document.getElementById('filterCUToggle').setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+
+function cuSelectAll(state) {
+  document.querySelectorAll('.cuCheck').forEach(cb => { cb.checked = state; });
+  onCUChange();
+}
+
+function onCUChange() {
+  updateCULabel();
+  refresh();
+}
+
 function onFYChange() {
   const selFYs = getSelectedFYs();
   const fySet = new Set(selFYs);
@@ -295,7 +348,7 @@ function onFYChange() {
 
   updateSelect('filterBU', fyBU, document.getElementById('filterBU').value, 'Todas');
   updateSelect('filterTipoAT', fyTA, document.getElementById('filterTipoAT').value, 'Todas');
-  updateSelect('filterCustomer', fyCU, document.getElementById('filterCustomer').value, 'Todas');
+  buildCUOptions(fyCU);
   updateSelect('filterJefatura', fyJE, document.getElementById('filterJefatura').value, 'Todas');
 
   const prevMonth = document.getElementById('filterMonth').value;
@@ -312,7 +365,7 @@ function gf() {
     fy: getSelectedFYs(),
     bu: document.getElementById('filterBU').value,
     ta: document.getElementById('filterTipoAT').value,
-    cu: document.getElementById('filterCustomer').value,
+    cu: getCheckedCUs(),
     je: document.getElementById('filterJefatura').value,
     month: document.getElementById('filterMonth').value,
     prodPos: document.getElementById('filterProdPos').checked,
@@ -339,6 +392,7 @@ function buildHolidaysYTD(fy) {
 function flt(data) {
   const f = gf();
   const fySet = new Set(f.fy);
+  const cuSet = f.cu.length ? new Set(f.cu) : null;
   const needHoliFilter = f.holi5 || f.holi15;
   const ytdHoli = needHoliFilter ? buildHolidaysYTD(f.fy) : null;
   const threshold = f.holi15 ? 15 : (f.holi5 ? 5 : 0);
@@ -346,7 +400,7 @@ function flt(data) {
     if (!fySet.has(a[13])) return false;
     if (f.bu && a[5] !== f.bu) return false;
     if (f.ta && a[4] !== f.ta) return false;
-    if (f.cu && a[1] !== f.cu) return false;
+    if (cuSet && !cuSet.has(a[1])) return false;
     if (f.je && a[10] !== f.je) return false;
     if (f.prodPos && a[6] <= 0) return false;
     if (f.prod1M && a[6] < 1000000) return false;
@@ -599,7 +653,7 @@ function refreshDetalleRev() {
   // Title
   const titleParts = [];
   if (f.q) titleParts.push(`"${f.q}"`);
-  if (f.cu) titleParts.push(f.cu);
+  if (f.cu.length) titleParts.push(f.cu.length <= 2 ? f.cu.join(' · ') : `${f.cu.length} clientes`);
   if (f.bu) titleParts.push(f.bu);
   const fyTitle = f.fy.length === F.fy.length ? 'Todos los FY' : 'FY ' + f.fy.join(' · ');
   if (titleParts.length === 0) titleParts.push(`Todas las actividades · ${fyTitle}`);

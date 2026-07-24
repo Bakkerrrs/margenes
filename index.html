@@ -89,7 +89,22 @@
   </div>
   <div class="filter-group"><label>BU</label><div class="input-row"><select id="filterBU"><option value="">Todas</option></select><button type="button" class="filter-clear" onclick="clearFilter('filterBU')" title="Limpiar filtro">×</button></div></div>
   <div class="filter-group"><label>Tipo-AT</label><div class="input-row"><select id="filterTipoAT"><option value="">Todas</option></select><button type="button" class="filter-clear" onclick="clearFilter('filterTipoAT')" title="Limpiar filtro">×</button></div></div>
-  <div class="filter-group"><label>Customer</label><div class="input-row"><select id="filterCustomer"><option value="">Todas</option></select><button type="button" class="filter-clear" onclick="clearFilter('filterCustomer')" title="Limpiar filtro">×</button></div></div>
+  <div class="filter-group">
+    <label>Customer</label>
+    <div class="ms-dropdown" id="filterCUWrap">
+      <button type="button" class="ms-toggle" id="filterCUToggle" onclick="toggleCUDropdown(event)" aria-haspopup="true" aria-expanded="false">
+        <span id="filterCULabel">Todas</span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#5a6a7e" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div class="ms-panel" id="filterCUPanel">
+        <div class="ms-actions">
+          <button type="button" onclick="cuSelectAll(true)">Todos</button>
+          <button type="button" onclick="cuSelectAll(false)">Ninguno</button>
+        </div>
+        <div id="filterCUOptions"></div>
+      </div>
+    </div>
+  </div>
   <div class="filter-group"><label>Jefatura</label><div class="input-row"><select id="filterJefatura"><option value="">Todas</option></select><button type="button" class="filter-clear" onclick="clearFilter('filterJefatura')" title="Limpiar filtro">×</button></div></div>
   <div class="filter-group"><label>Mes Detalle</label><select id="filterMonth"></select></div>
   <div class="filter-group">

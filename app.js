@@ -25,7 +25,7 @@ let ALL = [];   // actividades as arrays matching original format
 let CONS = {};   // consultores keyed by "actShort|month"
 let HOLI = {};   // holidays keyed by "employee|month" → total dias
 let CONS_RAW = []; // raw consultores rows for Consultor tab
-let F = { fy: [], bu: [], ta: [], cu: [], je: [] };  // filter options
+let F = { fy: [], bu: [], irm: [], cu: [], je: [] };  // filter options
 
 let sChart, hChart, dChart, drChart, pChart;
 let sortCol = 8, sortDir = 'asc';
@@ -140,11 +140,11 @@ async function loadData() {
     updateLoadingProgress(92, 'Transformando registros...');
 
     // Transform actividades to array format matching original RAW.a
-    // [0:month, 1:customer, 2:actShort, 3:actDesc, 4:tipoAT, 5:bu,
+    // [0:month, 1:customer, 2:actShort, 3:actDesc, 4:tipoAT (unused), 5:bu,
     //  6:prod, 7:total_costo_corregido, 8:margin (calculated), 9:billing, 10:jefatura,
     //  11:diasImputados, 12:workingDays, 13:fy, 14:pais, 15:quarter,
     //  16:project, 17:projectName, 18:subproject, 19:subprojectName,
-    //  20:irm, 21:keyBuFinal, 22:starterDate, 23:finisherDate, 24:totalProdUF]
+    //  20:irm (Income recognition Method — filtro), 21:keyBuFinal, 22:starterDate, 23:finisherDate, 24:totalProdUF]
     ALL = actRows.map(r => [
       r.month, r.customer, r.act_short, r.act_desc,
       r.tipo_at, r.bu,
@@ -178,7 +178,7 @@ async function loadData() {
     // Build filter options from data
     F.fy = [...new Set(ALL.map(a => a[13]))].sort();
     F.bu = [...new Set(ALL.map(a => a[5]))].sort();
-    F.ta = [...new Set(ALL.map(a => a[4]))].sort();
+    F.irm = [...new Set(ALL.map(a => a[20]))].filter(v => v).sort();
     F.cu = [...new Set(ALL.map(a => a[1]))].sort();
     F.je = [...new Set(ALL.map(a => a[10]))].sort();
 
@@ -197,14 +197,14 @@ async function loadData() {
 function initUI() {
   buildFYOptions();
 
-  // BU, TipoAT, Customer, Jefatura and Month filters are populated dynamically in onFYChange()
+  // BU, IRM, Customer, Jefatura and Month filters are populated dynamically in onFYChange()
 
   document.getElementById('legend').innerHTML = RANGES.map(r =>
     `<div class="legend-item"><div class="legend-dot" style="background:${r.color}"></div>${r.label}</div>`
   ).join('') +
     '<div class="legend-item" style="margin-left:12px"><div style="width:16px;height:16px;border-radius:4px;background:rgba(2,147,28,0.12);display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#02931C;font-family:JetBrains Mono">%</div><span style="font-weight:600;color:var(--text2)">Margen Ponderado</span></div>';
 
-  ['filterBU', 'filterTipoAT', 'filterJefatura', 'filterMonth'].forEach(id =>
+  ['filterBU', 'filterIRM', 'filterJefatura', 'filterMonth'].forEach(id =>
     document.getElementById(id).addEventListener('change', refresh)
   );
   // Close the floating panels (Año Fiscal, Customer, ayuda de Proyección) when clicking outside them
@@ -343,13 +343,13 @@ function onFYChange() {
   }
 
   const fyBU = [...new Set(fyData.map(a => a[5]))].filter(v => v && v !== '0').sort();
-  const fyTA = [...new Set(fyData.map(a => a[4]))].sort();
+  const fyIRM = [...new Set(fyData.map(a => a[20]))].filter(v => v).sort();
   const fyCU = [...new Set(fyData.map(a => a[1]))].sort();
   const fyJE = [...new Set(fyData.map(a => a[10]))].sort();
   const fyMonths = [...new Set(fyData.map(a => a[0]))].sort();
 
   updateSelect('filterBU', fyBU, document.getElementById('filterBU').value, 'Todas');
-  updateSelect('filterTipoAT', fyTA, document.getElementById('filterTipoAT').value, 'Todas');
+  updateSelect('filterIRM', fyIRM, document.getElementById('filterIRM').value, 'Todos');
   buildCUOptions(fyCU);
   updateSelect('filterJefatura', fyJE, document.getElementById('filterJefatura').value, 'Todas');
 
@@ -366,7 +366,7 @@ function gf() {
   return {
     fy: getSelectedFYs(),
     bu: document.getElementById('filterBU').value,
-    ta: document.getElementById('filterTipoAT').value,
+    irm: document.getElementById('filterIRM').value,
     cu: getCheckedCUs(),
     je: document.getElementById('filterJefatura').value,
     month: document.getElementById('filterMonth').value,
@@ -401,7 +401,7 @@ function flt(data, opts = {}) {
   return data.filter(a => {
     if (!opts.ignoreFY && !fySet.has(a[13])) return false;
     if (f.bu && a[5] !== f.bu) return false;
-    if (f.ta && a[4] !== f.ta) return false;
+    if (f.irm && a[20] !== f.irm) return false;
     if (cuSet && !cuSet.has(a[1])) return false;
     if (f.je && a[10] !== f.je) return false;
     if (f.prodPos && a[6] <= 0) return false;

@@ -32,6 +32,14 @@ let sortCol = 8, sortDir = 'asc';
 let detSortCol = 'ad', detSortDir = 'asc';
 let detRevSortCol = 'rev', detRevSortDir = 'desc';
 let activeTab = 'resumen';
+// Subcontracting activities are scored on their own margin scale:
+//   dark < 10%   ·   red 10% - 20%   ·   green >= 20%
+// They reuse the RANGES palette by mapping onto the buckets that already carry
+// those colours (0 = dark, 1 = red, 4 = green), so charts, legend and the
+// range filter keep working without structural changes.
+const SUBCO_IDX = { dark: 0, red: 1, green: 4 };
+function isSubco(irm) { return String(irm || '').trim().toLowerCase() === 'subcontracting'; }
+
 let selRange = -1; // selected RANGES index from hChart click (-1 = no filter)
 
 // ─── Supabase helpers ───
@@ -202,7 +210,8 @@ function initUI() {
   document.getElementById('legend').innerHTML = RANGES.map(r =>
     `<div class="legend-item"><div class="legend-dot" style="background:${r.color}"></div>${r.label}</div>`
   ).join('') +
-    '<div class="legend-item" style="margin-left:12px"><div style="width:16px;height:16px;border-radius:4px;background:rgba(2,147,28,0.12);display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#02931C;font-family:JetBrains Mono">%</div><span style="font-weight:600;color:var(--text2)">Margen Ponderado</span></div>';
+    '<div class="legend-item" style="margin-left:12px"><div style="width:16px;height:16px;border-radius:4px;background:rgba(2,147,28,0.12);display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#02931C;font-family:JetBrains Mono">%</div><span style="font-weight:600;color:var(--text2)">Margen Ponderado</span></div>' +
+    '<div class="legend-item" style="margin-left:12px;color:var(--text3)"><span style="font-weight:600;color:var(--text2)">Subcontracting:</span>&nbsp;&lt;10% \u00b7 10-20% \u00b7 &ge;20%</div>';
 
   ['filterBU', 'filterIRM', 'filterJefatura', 'filterMonth'].forEach(id =>
     document.getElementById(id).addEventListener('change', refresh)
@@ -415,7 +424,11 @@ function flt(data, opts = {}) {
   });
 }
 
-function gri(mg) { for (let i = RANGES.length - 1; i >= 0; i--) { if (mg >= RANGES[i].lo) return i; } return 0; }
+function gri(mg, irm) {
+  if (isSubco(irm)) return mg < 0.10 ? SUBCO_IDX.dark : mg < 0.20 ? SUBCO_IDX.red : SUBCO_IDX.green;
+  for (let i = RANGES.length - 1; i >= 0; i--) { if (mg >= RANGES[i].lo) return i; }
+  return 0;
+}
 function fmt(n) { if (n == null || isNaN(n)) return '-'; const a = Math.abs(n), s = n < 0 ? '-' : ''; if (a >= 1e6) return s + '$' + (a / 1e6).toFixed(1) + 'M'; if (a >= 1e3) return s + '$' + Math.round(a / 1e3) + 'K'; return s + '$' + Math.round(a); }
 function fmtFull(n) { if (n == null || isNaN(n)) return '-'; const s = n < 0 ? '-' : ''; return s + '$' + Math.round(Math.abs(n)).toLocaleString('es-CL'); }
 function fmtUF(n) { if (n == null || isNaN(n) || n === 0) return '-'; const a = Math.abs(n), s = n < 0 ? '-' : ''; if (a >= 1e6) return s + (a / 1e6).toFixed(1) + 'M UF'; if (a >= 1e3) return s + (a / 1e3).toFixed(1) + 'K UF'; return s + a.toFixed(1) + ' UF'; }
@@ -445,7 +458,7 @@ function refresh() {
     <div class="kpi"><div class="kpi-label">ADC <span style="font-weight:400;font-size:9px;color:var(--text3)">(Costo/D\u00eda)</span></div><div class="kpi-value" style="color:#c0392b">${fmtFull(adc)}</div></div>`;
 
   const sd = {}; months.forEach(m => { sd[m] = new Array(RANGES.length).fill(0); });
-  fd.forEach(a => { const ri = gri(a[8]); if (sd[a[0]]) sd[a[0]][ri]++; });
+  fd.forEach(a => { const ri = gri(a[8], a[20]); if (sd[a[0]]) sd[a[0]][ri]++; });
   const dl = {}; months.forEach((m, mi) => { dl[m] = sd[m].map((v, ri) => mi === 0 ? v : v - sd[months[mi - 1]][ri]); });
   const mMg = {}; months.forEach(m => {
     const ma = fd.filter(a => a[0] === m); const p = ma.reduce((s, a) => s + a[6], 0), c = ma.reduce((s, a) => s + a[7], 0);
@@ -532,12 +545,12 @@ function refresh() {
     const bgColors = RANGES.map((r, i) => selRange === -1 || selRange === i ? r.color : r.color + '30');
     hChart.data.datasets[0].backgroundColor = bgColors;
     hChart.update();
-    const filtered = selRange === -1 ? md : md.filter(a => gri(a[8]) === selRange);
+    const filtered = selRange === -1 ? md : md.filter(a => gri(a[8], a[20]) === selRange);
     renderTable(filtered, f.month);
   };
 
   document.getElementById('detailMonthLabel').textContent = mlabel(f.month);
-  const filtered = selRange === -1 ? md : md.filter(a => gri(a[8]) === selRange);
+  const filtered = selRange === -1 ? md : md.filter(a => gri(a[8], a[20]) === selRange);
   renderTable(filtered, f.month);
   if (activeTab === 'detalle') refreshDetalle();
   if (activeTab === 'detalleRev') refreshDetalleRev();
@@ -552,7 +565,7 @@ const SORT_COLS = [null, { k: 2, t: 's' }, { k: 3, t: 's' }, { k: 1, t: 's' }, {
 function doSort(ci) {
   if (sortCol === ci) { sortDir = sortDir === 'asc' ? 'desc' : 'asc'; } else { sortCol = ci; sortDir = 'asc'; }
   const f = gf(), fd = flt(ALL), md = fd.filter(a => a[0] === f.month);
-  const filtered = selRange === -1 ? md : md.filter(a => gri(a[8]) === selRange);
+  const filtered = selRange === -1 ? md : md.filter(a => gri(a[8], a[20]) === selRange);
   renderTable(filtered, f.month);
 }
 
@@ -569,7 +582,7 @@ function renderTable(md, month) {
   h += '</tr></thead><tbody>';
   sorted.forEach((a, idx) => {
     const hasProd = a[6] !== 0, mgPct = hasProd ? (a[8] * 100).toFixed(1) : 'N/A';
-    const ri = gri(a[8]), cls = RANGES[ri].cls;
+    const ri = gri(a[8], a[20]), cls = RANGES[ri].cls;
     const key = `${a[2]}|${month}`, hasC = CONS[key] && CONS[key].length > 0;
     h += `<tr class="${hasC ? 'expand-row' : ''}" onclick="${hasC ? `toggleRow('cr${idx}')` : ''}">`
       + `<td style="text-align:center;color:var(--accent);font-size:10px">${hasC ? '\u25B6' : ''}</td>`
@@ -1032,7 +1045,7 @@ function refreshDistribucion() {
   let outOfRange = 0;
   const datasets = RANGES.map((r, ri) => ({
     label: r.label,
-    data: fd.filter(a => gri(a[8]) === ri).map(a => {
+    data: fd.filter(a => gri(a[8], a[20]) === ri).map(a => {
       const y = a[8] * 100;
       if (y < yMin || y > yMax) outOfRange++;
       return { x: a[6], y, _act: a[2], _desc: a[3], _cu: a[1], _mo: a[0], _co: a[7] };
@@ -1123,7 +1136,7 @@ function refreshDetalle() {
   const acts = {};
   fd.forEach(a => {
     const key = a[2];
-    if (!acts[key]) { acts[key] = { as: a[2], ad: a[3], cu: a[1], bu: a[5], je: a[10], months: {} }; }
+    if (!acts[key]) { acts[key] = { as: a[2], ad: a[3], cu: a[1], bu: a[5], je: a[10], irm: a[20], months: {} }; }
     acts[key].months[a[0]] = { mg: a[8], pr: a[6], co: a[7], di: a[11], wd: a[12], puf: a[24] };
   });
 
@@ -1145,7 +1158,12 @@ function refreshDetalle() {
     return detSortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
   });
 
-  function mgBg(mg) {
+  function mgBg(mg, irm) {
+    if (isSubco(irm)) {
+      if (mg >= 0.20) return 'background:#e2f5e5;color:#02931C';
+      if (mg >= 0.10) return 'background:#fce8ea;color:#D64550';
+      return 'background:#e8e8e8;color:#1a1a1a';
+    }
     if (mg >= 0.34) return 'background:#e2f5e5;color:#02931C';
     if (mg >= 0.30) return 'background:#f3f7de;color:#5a6600';
     if (mg >= 0.28) return 'background:#fdf0e6;color:#b45309';
@@ -1173,14 +1191,14 @@ function refreshDetalle() {
       const d = row.months[m];
       if (d && d.pr !== 0) {
         const pct = (d.mg * 100).toFixed(1); const adrV = d.di > 0 ? (d.pr / d.di) : 0; const adcV = d.di > 0 ? (d.co / d.di) : 0;
-        h += `<td style="text-align:center"><span class="mg-cell" style="${mgBg(d.mg)}" data-as="${row.as}" data-mo="${m}" data-pr="${d.pr}" data-puf="${d.puf}" data-co="${d.co}" data-mg="${pct}" data-di="${d.di}" data-wd="${d.wd}" data-adr="${Math.round(adrV)}" data-adc="${Math.round(adcV)}" onmouseenter="showTip(event,this)" onmouseleave="hideTip()">${pct}%</span></td>`;
+        h += `<td style="text-align:center"><span class="mg-cell" style="${mgBg(d.mg, row.irm)}" data-as="${row.as}" data-mo="${m}" data-pr="${d.pr}" data-puf="${d.puf}" data-co="${d.co}" data-mg="${pct}" data-di="${d.di}" data-wd="${d.wd}" data-adr="${Math.round(adrV)}" data-adc="${Math.round(adcV)}" onmouseenter="showTip(event,this)" onmouseleave="hideTip()">${pct}%</span></td>`;
       } else if (d && d.pr === 0) {
         h += `<td style="text-align:center"><span class="mg-cell" style="background:#f0f0f0;color:#999" data-as="${row.as}" data-mo="${m}" data-pr="0" data-puf="0" data-co="${d.co}" data-mg="N/A" data-di="${d.di}" data-wd="${d.wd}" data-adr="0" data-adc="0" onmouseenter="showTip(event,this)" onmouseleave="hideTip()">N/A</span></td>`;
       } else { h += `<td style="text-align:center;color:#ccc">\u2014</td>`; }
     });
     if (row.ytdProd !== 0) {
       const ytdPct = (row.ytdMg * 100).toFixed(1);
-      h += `<td style="text-align:center;border-left:2px solid var(--accent);background:#f8fafd"><span class="mg-cell" style="${mgBg(row.ytdMg)};font-weight:800">${ytdPct}%</span></td>`;
+      h += `<td style="text-align:center;border-left:2px solid var(--accent);background:#f8fafd"><span class="mg-cell" style="${mgBg(row.ytdMg, row.irm)};font-weight:800">${ytdPct}%</span></td>`;
     } else { h += `<td style="text-align:center;border-left:2px solid var(--accent);background:#f8fafd"><span class="mg-cell" style="background:#f0f0f0;color:#999">N/A</span></td>`; }
     h += '</tr>';
   });
@@ -1284,11 +1302,11 @@ function refreshConsultor(name) {
   // Filter rows for this consultant, get activity description from ALL lookup
   const actDesc = {}; ALL.forEach(a => { actDesc[a[2]] = a[3]; });
   // Build lookup for activity-month → prod, prodUF, margin from actividades
-  const actData = {}; ALL.forEach(a => { actData[`${a[2]}|${a[0]}`] = { pr: a[6], puf: a[24], mg: a[8] }; });
+  const actData = {}; ALL.forEach(a => { actData[`${a[2]}|${a[0]}`] = { pr: a[6], puf: a[24], mg: a[8], irm: a[20] }; });
   const rows = CONS_RAW
     .filter(r => (r.profesional || r.employee_name) === name)
     .map(r => {
-      const ad = actData[`${r.act_short}|${r.month}`] || { pr: 0, puf: 0, mg: 0 };
+      const ad = actData[`${r.act_short}|${r.month}`] || { pr: 0, puf: 0, mg: 0, irm: '' };
       return {
         act: r.act_short || '',
         desc: actDesc[r.act_short] || r.activity_name || '',
@@ -1300,7 +1318,8 @@ function refreshConsultor(name) {
         report: r.report_code || '',
         prod: ad.pr,
         prodUF: ad.puf,
-        margin: ad.mg
+        margin: ad.mg,
+        irm: ad.irm
       };
     })
     .sort((a, b) => b.month.localeCompare(a.month) || a.act.localeCompare(b.act));
@@ -1327,7 +1346,9 @@ function refreshConsultor(name) {
     const trCls = cls ? ` class="${cls}"` : '';
     const hasProd = r.prod !== 0;
     const mgPct = hasProd ? (r.margin * 100).toFixed(1) : 'N/A';
-    const mgColor = !hasProd ? '#999' : r.margin >= 0.34 ? '#02931C' : r.margin >= 0.30 ? '#5a6600' : r.margin >= 0.28 ? '#b45309' : r.margin >= 0.25 ? '#D64550' : '#1a1a1a';
+    const mgColor = !hasProd ? '#999'
+      : isSubco(r.irm) ? (r.margin >= 0.20 ? '#02931C' : r.margin >= 0.10 ? '#D64550' : '#1a1a1a')
+      : r.margin >= 0.34 ? '#02931C' : r.margin >= 0.30 ? '#5a6600' : r.margin >= 0.28 ? '#b45309' : r.margin >= 0.25 ? '#D64550' : '#1a1a1a';
     h += `<tr${trCls}>`;
     h += `<td class="td-mono" style="font-size:11px">${r.act.startsWith('SGC') ? `<a href="#" class="codigo-link" onclick="fillSearch('${r.act}');return false">${r.act}</a>` : r.act}</td>`;
     h += `<td class="td-name">${r.desc}</td>`;

@@ -202,6 +202,32 @@ async function loadData() {
 
 // ─── UI initialization (runs after data is loaded) ───
 
+// ─── Deep link ───
+// http://profitcenter.siigroup.cl/SGC0003253.01.P001  (needs the server to
+// rewrite unknown paths to index.html), or the no-config equivalents
+// ?q=SGC0003253.01.P001 and #SGC0003253.01.P001, prefill "Buscar Actividad".
+
+// Real files served by the site must never be read as an activity code.
+const DEEPLINK_FILE_RE = /\.(html?|js|css|json|map|txt|xml|ico|png|jpe?g|gif|svg|webmanifest)$/i;
+
+function deepLinkTerm() {
+  try {
+    const qs = new URLSearchParams(location.search);
+    const q = (qs.get('q') || qs.get('actividad') || '').trim();
+    if (q) return q;
+
+    const hash = decodeURIComponent(location.hash.replace(/^#/, '')).trim();
+    if (hash) return hash;
+
+    const path = decodeURIComponent(location.pathname).replace(/^\/+|\/+$/g, '').trim();
+    if (!path || path.includes('/') || DEEPLINK_FILE_RE.test(path)) return '';
+    return path;
+  } catch (err) {
+    console.warn('Deep link ignorado:', err);
+    return '';
+  }
+}
+
 function initUI() {
   buildFYOptions();
 
@@ -232,6 +258,11 @@ function initUI() {
     clearTimeout(searchTimer);
     searchTimer = setTimeout(refresh, 200);
   });
+
+  // Prefill from the URL before the first render, so the panel opens filtered
+  // in one pass instead of drawing everything and then narrowing it.
+  const linked = deepLinkTerm();
+  if (linked) document.getElementById('filterSearch').value = linked;
 
   onFYChange();
 }

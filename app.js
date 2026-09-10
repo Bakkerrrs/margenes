@@ -27,10 +27,11 @@ let HOLI = {};   // holidays keyed by "employee|month" → total dias
 let CONS_RAW = []; // raw consultores rows for Consultor tab
 let F = { fy: [], bu: [], irm: [], cu: [], je: [] };  // filter options
 
-let sChart, hChart, dChart, drChart, pChart;
+let sChart, hChart, dChart, drChart, pChart, facChart;
 let sortCol = 8, sortDir = 'asc';
 let detSortCol = 'ad', detSortDir = 'asc';
 let detRevSortCol = 'rev', detRevSortDir = 'desc';
+let facSortCol = 'wipOut', facSortDir = 'desc';
 let activeTab = 'resumen';
 // Subcontracting activities are scored on their own margin scale:
 //   dark < 10%   ·   red 10% - 20%   ·   green >= 20%
@@ -189,6 +190,7 @@ async function loadData() {
     F.irm = [...new Set(ALL.map(a => a[20]))].filter(v => v).sort();
     F.cu = [...new Set(ALL.map(a => a[1]))].sort();
     F.je = [...new Set(ALL.map(a => a[10]))].sort();
+    WIP_HIST = null; // derived from ALL, rebuilt on demand
 
     updateLoadingProgress(100, 'Listo');
     showLoading(false);
@@ -585,6 +587,7 @@ function refresh() {
   renderTable(filtered, f.month);
   if (activeTab === 'detalle') refreshDetalle();
   if (activeTab === 'detalleRev') refreshDetalleRev();
+  if (activeTab === 'facturacion') refreshFacturacion();
   if (activeTab === 'proyeccion') refreshProyeccion();
   if (activeTab === 'distribucion') refreshDistribucion();
 }
@@ -651,6 +654,7 @@ function switchTab(tab) {
   document.getElementById('tabResumen').style.display = tab === 'resumen' ? '' : 'none';
   document.getElementById('tabDetalle').style.display = tab === 'detalle' ? '' : 'none';
   document.getElementById('tabDetalleRev').style.display = tab === 'detalleRev' ? '' : 'none';
+  document.getElementById('tabFacturacion').style.display = tab === 'facturacion' ? '' : 'none';
   document.getElementById('tabProyeccion').style.display = tab === 'proyeccion' ? '' : 'none';
   document.getElementById('tabDistribucion').style.display = tab === 'distribucion' ? '' : 'none';
   document.getElementById('tabConsultor').style.display = tab === 'consultor' ? '' : 'none';
@@ -658,6 +662,7 @@ function switchTab(tab) {
   document.getElementById('tabImportar').style.display = tab === 'importar' ? '' : 'none';
   if (tab === 'detalle') refreshDetalle();
   if (tab === 'detalleRev') refreshDetalleRev();
+  if (tab === 'facturacion') refreshFacturacion();
   if (tab === 'proyeccion') refreshProyeccion();
   if (tab === 'distribucion') { refreshDistribucion(); distribInitKeyboardPan(); }
   if (tab === 'consultor') initConsultorTab();
@@ -1239,6 +1244,241 @@ function refreshDetalle() {
 function detSort(col) {
   if (detSortCol === col) { detSortDir = detSortDir === 'asc' ? 'desc' : 'asc'; } else { detSortCol = col; detSortDir = 'asc'; }
   refreshDetalle();
+}
+
+
+// ─── Facturación Tab (WIP) ───
+//
+// WIP is a running balance per activity:
+//   first month of the activity : WIP = Producción − Facturación
+//   following months            : WIP = WIP(M-1) + Producción(M) − Facturación(M)
+//
+// The balance accumulates over the activity's WHOLE history in ALL, not only the
+// months on screen: a balance that restarted every fiscal year would not be a
+// balance. The FY/month filters choose which columns are shown, and the "WIP
+// inicial" column exposes whatever was carried in from the months left out.
+
+let WIP_HIST = null; // cache, rebuilt on demand after a data load
+
+function buildWipHistory() {
+  // Sum instead of overwrite: an activity can carry more than one row per month.
+  const raw = {};
+  ALL.forEach(a => {
+    const by = raw[a[2]] || (raw[a[2]] = {});
+    const cell = by[a[0]] || (by[a[0]] = { pr: 0, bi: 0 });
+    cell.pr += Number(a[6]) || 0;  // Total Monthly Prod
+    cell.bi += Number(a[9]) || 0;  // Total Facturacion mensual
+  });
+  const out = {};
+  Object.keys(raw).forEach(k => {
+    const ordered = Object.keys(raw[k]).sort();
+    const months = {};
+    let run = 0;
+    ordered.forEach(m => {
+      const d = raw[k][m];
+      const delta = d.pr - d.bi;
+      run += delta;
+      months[m] = { pr: d.pr, bi: d.bi, delta, wip: run };
+    });
+    out[k] = { ordered, months };
+  });
+  return out;
+}
+
+function wipHistory() {
+  if (!WIP_HIST) WIP_HIST = buildWipHistory();
+  return WIP_HIST;
+}
+
+function wipBg(delta, moved) {
+  if (!moved || delta === 0) return 'background:#f4f4f4;color:#8896a6';
+  return delta > 0 ? 'background:#fce8ea;color:#D64550' : 'background:#e2f5e5;color:#02931C';
+}
+
+function refreshFacturacion() {
+  const f = gf();
+  const fd = flt(ALL);
+  const months = [...new Set(fd.map(a => a[0]))].sort();
+  const hist = wipHistory();
+
+  const titleParts = [];
+  if (f.q) titleParts.push(`"${f.q}"`);
+  if (f.cu.length) titleParts.push(f.cu.length <= 2 ? f.cu.join(' · ') : `${f.cu.length} clientes`);
+  if (f.bu) titleParts.push(f.bu);
+  const fyTitle = f.fy.length === F.fy.length ? 'Todos los FY' : 'FY ' + f.fy.join(' · ');
+  if (titleParts.length === 0) titleParts.push(`Todas las actividades · ${fyTitle}`);
+  else titleParts.push(fyTitle);
+  document.getElementById('facTitle').textContent = titleParts.join(' · ');
+
+  if (months.length === 0) {
+    if (facChart) { facChart.destroy(); facChart = null; }
+    document.getElementById('facKpis').innerHTML = '';
+    document.getElementById('facTableWrap').innerHTML = '<p style="color:var(--text3);padding:20px;text-align:center">Sin datos para los filtros actuales</p>';
+    return;
+  }
+  const lastMo = months[months.length - 1];
+
+  const meta = {};
+  fd.forEach(a => { if (!meta[a[2]]) meta[a[2]] = { as: a[2], ad: a[3], cu: a[1], bu: a[5] }; });
+
+  const rows = Object.values(meta).map(mt => {
+    const rec = hist[mt.as] || { ordered: [], months: {} };
+
+    // Balance carried into the first shown month, from months the filter hides.
+    let wipIn = 0;
+    rec.ordered.forEach(om => { if (om < months[0]) wipIn = rec.months[om].wip; });
+
+    // Walk shown months and the activity's own months together, so a month with
+    // no movement still reports the balance standing at that point.
+    const cells = {};
+    let i = 0, run = 0, open = false;
+    months.forEach(m => {
+      while (i < rec.ordered.length && rec.ordered[i] <= m) { run = rec.months[rec.ordered[i]].wip; open = true; i++; }
+      const own = rec.months[m];
+      cells[m] = own
+        ? { pr: own.pr, bi: own.bi, delta: own.delta, wip: own.wip, moved: true, open: true }
+        : { pr: 0, bi: 0, delta: 0, wip: run, moved: false, open };
+    });
+
+    let prod = 0, bill = 0;
+    months.forEach(m => { prod += cells[m].pr; bill += cells[m].bi; });
+    const wipOut = cells[lastMo].wip;
+    return { ...mt, cells, wipIn, prod, bill, wipOut, deltaPeriod: wipOut - wipIn };
+  });
+
+  rows.sort((a, b) => {
+    const dir = facSortDir === 'asc' ? 1 : -1;
+    if (facSortCol === 'wipIn') return (a.wipIn - b.wipIn) * dir;
+    if (facSortCol === 'wipOut') return (a.wipOut - b.wipOut) * dir;
+    if (facSortCol === 'delta') return (a.deltaPeriod - b.deltaPeriod) * dir;
+    if (months.includes(facSortCol)) return (a.cells[facSortCol].wip - b.cells[facSortCol].wip) * dir;
+    const va = (a[facSortCol] || '').toString().toLowerCase();
+    const vb = (b[facSortCol] || '').toString().toLowerCase();
+    return va.localeCompare(vb) * dir;
+  });
+
+  // Monthly totals across every activity on screen
+  const tot = {};
+  months.forEach(m => { tot[m] = { wip: 0, delta: 0, pr: 0, bi: 0 }; });
+  rows.forEach(r => months.forEach(m => {
+    const c = r.cells[m];
+    tot[m].wip += c.wip; tot[m].delta += c.delta; tot[m].pr += c.pr; tot[m].bi += c.bi;
+  }));
+
+  // KPIs
+  let upMo = null, upV = -Infinity, dnMo = null, dnV = Infinity;
+  months.forEach(m => {
+    if (tot[m].delta > upV) { upV = tot[m].delta; upMo = m; }
+    if (tot[m].delta < dnV) { dnV = tot[m].delta; dnMo = m; }
+  });
+  const totProd = months.reduce((s, m) => s + tot[m].pr, 0);
+  const totBill = months.reduce((s, m) => s + tot[m].bi, 0);
+  const wipEnd = tot[lastMo].wip;
+
+  document.getElementById('facKpis').innerHTML = `
+    <div class="kpi"><div class="kpi-label">WIP a ${mlabel(lastMo)}</div><div class="kpi-value" style="color:${wipEnd > 0 ? '#D64550' : '#02931C'}">${fmtFull(wipEnd)}</div></div>
+    <div class="kpi"><div class="kpi-label">Mayor Alza de WIP</div><div class="kpi-value" style="font-size:16px">${upMo && upV > 0 ? `${mlabel(upMo)} <span style="color:#D64550;font-size:14px">${fmtFull(upV)}</span>` : '<span style="color:var(--text3);font-size:16px">Sin alzas</span>'}</div></div>
+    <div class="kpi"><div class="kpi-label">Mayor Baja de WIP</div><div class="kpi-value" style="font-size:16px">${dnMo && dnV < 0 ? `${mlabel(dnMo)} <span style="color:#02931C;font-size:14px">${fmtFull(dnV)}</span>` : '<span style="color:var(--text3);font-size:16px">Sin bajas</span>'}</div></div>
+    <div class="kpi"><div class="kpi-label">Producción del Período</div><div class="kpi-value" style="font-size:18px">${fmtFull(totProd)}</div></div>
+    <div class="kpi"><div class="kpi-label">Facturación del Período</div><div class="kpi-value" style="font-size:18px;color:var(--accent)">${fmtFull(totBill)}</div></div>`;
+
+  // Chart: WIP balance as bars, monthly movement as a line
+  if (facChart) facChart.destroy();
+  facChart = new Chart(document.getElementById('facChart').getContext('2d'), {
+    data: {
+      labels: months.map(m => mlabel(m)),
+      datasets: [
+        { type: 'bar', label: 'WIP acumulado', data: months.map(m => tot[m].wip), yAxisID: 'y',
+          backgroundColor: 'rgba(27,95,168,0.70)', borderColor: '#1B5FA8', borderWidth: 1, borderRadius: 3, order: 2 },
+        { type: 'line', label: 'Δ WIP del mes', data: months.map(m => tot[m].delta), yAxisID: 'y1',
+          borderColor: '#E66C37', backgroundColor: 'rgba(230,108,55,0.15)', borderWidth: 2.5,
+          pointRadius: 4, pointHoverRadius: 6, pointBackgroundColor: '#E66C37', tension: 0.25, fill: false, order: 1 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { position: 'top', labels: { boxWidth: 12, font: { family: 'Source Sans 3', size: 11 } } },
+        tooltip: {
+          backgroundColor: '#fff', titleColor: '#1a2b3c', bodyColor: '#5a6a7e', borderColor: '#dfe3e8', borderWidth: 1, cornerRadius: 6, padding: 10,
+          callbacks: {
+            label: ctx => `${ctx.dataset.label}: ${fmtFull(ctx.raw)}`,
+            afterBody: items => {
+              const m = months[items[0].dataIndex];
+              return [`Producción: ${fmtFull(tot[m].pr)}`, `Facturación: ${fmtFull(tot[m].bi)}`];
+            }
+          }
+        }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: '#5a6a7e', font: { family: 'Source Sans 3', size: 11 } }, border: { color: '#dfe3e8' } },
+        y: { position: 'left', title: { display: true, text: 'WIP acumulado', color: '#1B5FA8', font: { family: 'Source Sans 3', size: 12 } },
+             grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { color: '#5a6a7e', font: { family: 'JetBrains Mono', size: 11 }, callback: v => fmt(v) }, border: { color: '#dfe3e8' } },
+        y1: { position: 'right', title: { display: true, text: 'Δ del mes', color: '#E66C37', font: { family: 'Source Sans 3', size: 12 } },
+              grid: { display: false }, ticks: { color: '#5a6a7e', font: { family: 'JetBrains Mono', size: 11 }, callback: v => fmt(v) }, border: { color: '#dfe3e8' } }
+      },
+      animation: { duration: 400 }
+    }
+  });
+
+  // Pivot
+  function shCls(col) { const active = facSortCol === col; return `class="sortable${active ? (' ' + facSortDir) : ''}" onclick="facSort('${col}')" style="cursor:pointer"`; }
+
+  let h = '<table class="pivot-table"><thead><tr>';
+  h += `<th class="fixed-col col0" ${shCls('as')}>Código</th>`;
+  h += `<th class="fixed-col col1" ${shCls('ad')}>Descripción</th>`;
+  h += `<th class="fixed-col col2" ${shCls('cu')}>Cliente</th>`;
+  h += `<th class="fixed-col col3" ${shCls('bu')}>BU</th>`;
+  h += `<th ${shCls('wipIn')} style="text-align:center;min-width:80px;color:var(--text3)">WIP inicial</th>`;
+  months.forEach(m => { h += `<th ${shCls(m)} style="text-align:center;min-width:82px">${mlabel(m)}</th>`; });
+  h += `<th ${shCls('delta')} style="text-align:center;min-width:82px;background:#fdf3ee;border-left:2px solid #E66C37;color:#b45309">Δ Período</th>`;
+  h += `<th ${shCls('wipOut')} style="text-align:center;min-width:82px;background:#e8f0fb;color:var(--accent);border-left:2px solid var(--accent)">WIP final</th>`;
+  h += '</tr></thead><tbody>';
+
+  rows.forEach(row => {
+    h += '<tr>';
+    h += `<td class="fixed-col col0 td-mono" style="font-size:10px">${row.as}</td>`;
+    h += `<td class="fixed-col col1">${row.ad}</td>`;
+    h += `<td class="fixed-col col2">${row.cu}</td>`;
+    h += `<td class="fixed-col col3">${row.bu}</td>`;
+    h += `<td class="td-mono" style="text-align:right;color:var(--text3);font-size:11px">${row.wipIn !== 0 ? fmt(row.wipIn) : '—'}</td>`;
+    months.forEach(m => {
+      const c = row.cells[m];
+      if (!c.open) { h += '<td style="text-align:center;color:#ccc">—</td>'; return; }
+      const arrow = c.moved && c.delta !== 0 ? (c.delta > 0 ? ' ▲' : ' ▼') : '';
+      const tip = `${row.as} · ${mlabel(m)}\nProducción: ${fmtFull(c.pr)}\nFacturación: ${fmtFull(c.bi)}\nΔ del mes: ${fmtFull(c.delta)}\nWIP acumulado: ${fmtFull(c.wip)}${c.moved ? '' : '\n(sin movimiento — saldo arrastrado)'}`;
+      h += `<td style="text-align:center"><span class="mg-cell" style="${wipBg(c.delta, c.moved)};min-width:66px" title="${tip.replace(/"/g, '&quot;')}">${fmt(c.wip)}${arrow}</span></td>`;
+    });
+    h += `<td style="text-align:center;border-left:2px solid #E66C37;background:#fffaf7"><span class="mg-cell" style="${wipBg(row.deltaPeriod, true)};min-width:66px">${fmt(row.deltaPeriod)}</span></td>`;
+    h += `<td style="text-align:center;border-left:2px solid var(--accent);background:#f8fafd"><span class="mg-cell" style="${wipBg(row.wipOut, true)};font-weight:800;min-width:66px">${fmt(row.wipOut)}</span></td>`;
+    h += '</tr>';
+  });
+
+  // Totals
+  const totIn = rows.reduce((s, r) => s + r.wipIn, 0);
+  const totDelta = rows.reduce((s, r) => s + r.deltaPeriod, 0);
+  h += '<tr style="font-weight:700;background:var(--surface2);border-top:2px solid var(--border)">';
+  h += `<td class="fixed-col col0" style="background:var(--surface2)"></td>`;
+  h += `<td class="fixed-col col1" style="background:var(--surface2)">TOTAL (${rows.length} actividades)</td>`;
+  h += `<td class="fixed-col col2" style="background:var(--surface2)"></td>`;
+  h += `<td class="fixed-col col3" style="background:var(--surface2)"></td>`;
+  h += `<td class="td-mono" style="text-align:right;font-size:11px;color:var(--text3)">${fmt(totIn)}</td>`;
+  months.forEach(m => {
+    const arrow = tot[m].delta !== 0 ? (tot[m].delta > 0 ? ' ▲' : ' ▼') : '';
+    h += `<td style="text-align:center"><span class="mg-cell" style="${wipBg(tot[m].delta, true)};min-width:66px" title="Δ del mes: ${fmtFull(tot[m].delta)}">${fmt(tot[m].wip)}${arrow}</span></td>`;
+  });
+  h += `<td style="text-align:center;border-left:2px solid #E66C37"><span class="mg-cell" style="${wipBg(totDelta, true)};min-width:66px">${fmt(totDelta)}</span></td>`;
+  h += `<td style="text-align:center;border-left:2px solid var(--accent)"><span class="mg-cell" style="${wipBg(wipEnd, true)};font-weight:800;min-width:66px">${fmt(wipEnd)}</span></td>`;
+  h += '</tr>';
+
+  h += '</tbody></table>';
+  document.getElementById('facTableWrap').innerHTML = h;
+}
+
+function facSort(col) {
+  if (facSortCol === col) { facSortDir = facSortDir === 'asc' ? 'desc' : 'asc'; } else { facSortCol = col; facSortDir = 'desc'; }
+  refreshFacturacion();
 }
 
 // ─── Consultor Tab ───

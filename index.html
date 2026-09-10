@@ -136,6 +136,7 @@
     <div class="tab active" onclick="switchTab('resumen')">Resumen</div>
     <div class="tab" onclick="switchTab('detalle')">Detalle Margen</div>
     <div class="tab" onclick="switchTab('detalleRev')">Detalle Revenue</div>
+    <div class="tab" onclick="switchTab('facturacion')">Facturación</div>
     <div class="tab" onclick="switchTab('proyeccion')">Proyección</div>
     <div class="tab" onclick="switchTab('distribucion')">Distribución</div>
     <div class="tab" onclick="switchTab('consultor')">Consultor</div>
@@ -173,6 +174,24 @@
       <div class="kpi-row" id="detRevKpis" style="grid-template-columns:repeat(4,1fr)"></div>
       <div class="chart-container" style="height:420px"><canvas id="detRevChart"></canvas></div>
       <div class="table-wrap" id="detRevTableWrap" style="margin-top:14px;max-height:420px"></div>
+    </div>
+  </div>
+
+  <div id="tabFacturacion" style="display:none">
+    <div class="card">
+      <div class="card-title"><span class="ta">●</span> WIP — Producción no facturada — <span id="facTitle" style="color:var(--accent);font-weight:700"></span></div>
+      <div style="font-size:11px;color:var(--text3);margin:-6px 0 12px">
+        WIP del primer mes de la actividad = <b>Producción − Facturación</b>. Meses siguientes = <b>WIP M-1 + Producción M − Facturación M</b>.
+        El saldo se acumula desde el primer mes real de cada actividad, aunque quede fuera del filtro de Año Fiscal.
+        <span style="color:#D64550;font-weight:600">Alza</span> = se produce más de lo que se factura ·
+        <span style="color:#02931C;font-weight:600">Baja</span> = la facturación recupera terreno.
+      </div>
+      <div class="kpi-row" id="facKpis" style="grid-template-columns:repeat(5,1fr)"></div>
+      <div class="chart-container" style="height:380px"><canvas id="facChart"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title"><span class="ta">●</span> WIP Mensual por Actividad</div>
+      <div class="table-wrap" id="facTableWrap" style="max-height:620px"></div>
     </div>
   </div>
 

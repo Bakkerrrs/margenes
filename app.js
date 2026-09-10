@@ -1382,17 +1382,30 @@ function refreshFacturacion() {
     <div class="kpi"><div class="kpi-label">Producción del Período</div><div class="kpi-value" style="font-size:18px">${fmtFull(totProd)}</div></div>
     <div class="kpi"><div class="kpi-label">Facturación del Período</div><div class="kpi-value" style="font-size:18px;color:var(--accent)">${fmtFull(totBill)}</div></div>`;
 
-  // Chart: WIP balance as bars, monthly movement as a line
+  // Chart: diverging bars — Producción up, Facturación mirrored down, so the gap
+  // between them IS the month's movement. The line carries the accumulated WIP.
+  // Facturación is fed in negative to mirror it; ticks and tooltips undo the sign.
+  const bound = Math.max(1, ...months.map(m => Math.max(tot[m].pr, tot[m].bi))) * 1.12;
+  // Both axes are made symmetric so their zeros land on the same pixel: the bars'
+  // baseline and the WIP line's zero-crossing have to be the same line, or the
+  // line looks like it goes negative while the balance is still positive.
+  const boundWip = Math.max(1, ...months.map(m => Math.abs(tot[m].wip))) * 1.12;
+
   if (facChart) facChart.destroy();
   facChart = new Chart(document.getElementById('facChart').getContext('2d'), {
     data: {
       labels: months.map(m => mlabel(m)),
       datasets: [
-        { type: 'bar', label: 'WIP acumulado', data: months.map(m => tot[m].wip), yAxisID: 'y',
-          backgroundColor: 'rgba(27,95,168,0.70)', borderColor: '#1B5FA8', borderWidth: 1, borderRadius: 3, order: 2 },
-        { type: 'line', label: 'Δ WIP del mes', data: months.map(m => tot[m].delta), yAxisID: 'y1',
-          borderColor: '#E66C37', backgroundColor: 'rgba(230,108,55,0.15)', borderWidth: 2.5,
-          pointRadius: 4, pointHoverRadius: 6, pointBackgroundColor: '#E66C37', tension: 0.25, fill: false, order: 1 }
+        { type: 'bar', label: 'Producción', data: months.map(m => tot[m].pr), yAxisID: 'y',
+          backgroundColor: 'rgba(27,95,168,0.78)', borderColor: '#1B5FA8', borderWidth: 1,
+          borderRadius: { topLeft: 3, topRight: 3 }, categoryPercentage: 0.68, barPercentage: 0.98, order: 3 },
+        { type: 'bar', label: 'Facturación', data: months.map(m => -tot[m].bi), yAxisID: 'y',
+          backgroundColor: 'rgba(2,147,28,0.72)', borderColor: '#02931C', borderWidth: 1,
+          borderRadius: { bottomLeft: 3, bottomRight: 3 }, categoryPercentage: 0.68, barPercentage: 0.98, order: 3 },
+        { type: 'line', label: 'WIP acumulado', data: months.map(m => tot[m].wip), yAxisID: 'y1',
+          borderColor: '#E66C37', backgroundColor: 'rgba(230,108,55,0.15)', borderWidth: 3,
+          pointRadius: 4.5, pointHoverRadius: 7, pointBackgroundColor: '#E66C37',
+          pointBorderColor: '#fff', pointBorderWidth: 1.5, tension: 0.25, fill: false, order: 1 }
       ]
     },
     options: {
@@ -1403,20 +1416,31 @@ function refreshFacturacion() {
         tooltip: {
           backgroundColor: '#fff', titleColor: '#1a2b3c', bodyColor: '#5a6a7e', borderColor: '#dfe3e8', borderWidth: 1, cornerRadius: 6, padding: 10,
           callbacks: {
-            label: ctx => `${ctx.dataset.label}: ${fmtFull(ctx.raw)}`,
+            label: ctx => `${ctx.dataset.label}: ${fmtFull(ctx.dataset.label === 'Facturación' ? Math.abs(ctx.raw) : ctx.raw)}`,
             afterBody: items => {
               const m = months[items[0].dataIndex];
-              return [`Producción: ${fmtFull(tot[m].pr)}`, `Facturación: ${fmtFull(tot[m].bi)}`];
+              const d = tot[m].delta;
+              return [`Δ del mes: ${d > 0 ? '+' : ''}${fmtFull(d)}${d > 0 ? '  (alza)' : d < 0 ? '  (baja)' : ''}`];
             }
           }
         }
       },
       scales: {
-        x: { grid: { display: false }, ticks: { color: '#5a6a7e', font: { family: 'Source Sans 3', size: 11 } }, border: { color: '#dfe3e8' } },
-        y: { position: 'left', title: { display: true, text: 'WIP acumulado', color: '#1B5FA8', font: { family: 'Source Sans 3', size: 12 } },
-             grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { color: '#5a6a7e', font: { family: 'JetBrains Mono', size: 11 }, callback: v => fmt(v) }, border: { color: '#dfe3e8' } },
-        y1: { position: 'right', title: { display: true, text: 'Δ del mes', color: '#E66C37', font: { family: 'Source Sans 3', size: 12 } },
-              grid: { display: false }, ticks: { color: '#5a6a7e', font: { family: 'JetBrains Mono', size: 11 }, callback: v => fmt(v) }, border: { color: '#dfe3e8' } }
+        x: { stacked: true, grid: { display: false }, ticks: { color: '#5a6a7e', font: { family: 'Source Sans 3', size: 11 } }, border: { color: '#dfe3e8' } },
+        y: {
+          stacked: true, position: 'left', min: -bound, max: bound,
+          title: { display: true, text: 'Producción  ↑   ·   ↓  Facturación', color: '#5a6a7e', font: { family: 'Source Sans 3', size: 12 } },
+          grid: { color: ctx => ctx.tick.value === 0 ? '#8896a6' : 'rgba(0,0,0,0.04)' },
+          ticks: { color: '#5a6a7e', font: { family: 'JetBrains Mono', size: 11 }, callback: v => fmt(Math.abs(v)) },
+          border: { color: '#dfe3e8' }
+        },
+        y1: {
+          position: 'right', min: -boundWip, max: boundWip,
+          title: { display: true, text: 'WIP acumulado', color: '#E66C37', font: { family: 'Source Sans 3', size: 12 } },
+          grid: { display: false },
+          ticks: { color: '#5a6a7e', font: { family: 'JetBrains Mono', size: 11 }, callback: v => fmt(v) },
+          border: { color: '#dfe3e8' }
+        }
       },
       animation: { duration: 400 }
     }

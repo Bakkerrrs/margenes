@@ -1616,6 +1616,7 @@ function refreshConsultor(name) {
         adv: r.responsible_id || '',
         jef: r.jefe_directo || '',
         dias: Number(r.dias) || 0,
+        costoDiario: Number(r.costo_diario) || 0,
         costo: Number(r.costo_mensual) || 0,
         report: r.report_code || '',
         prod: ad.pr,
@@ -1633,6 +1634,7 @@ function refreshConsultor(name) {
   h += '<th class="sortable" style="cursor:default">ADV</th>';
   h += '<th class="sortable" style="cursor:default">Jefatura</th>';
   h += '<th class="sortable" style="cursor:default;text-align:right">D\u00edas</th>';
+  h += '<th class="sortable" style="cursor:default;text-align:right">Costo Diario</th>';
   h += '<th class="sortable" style="cursor:default;text-align:right">Costo</th>';
   h += '<th class="sortable" style="cursor:default;text-align:right">Producci\u00f3n</th>';
   h += '<th class="sortable" style="cursor:default;text-align:right">Prod UF</th>';
@@ -1658,6 +1660,7 @@ function refreshConsultor(name) {
     h += `<td class="td-name" style="font-size:11px">${r.adv}</td>`;
     h += `<td class="td-name" style="font-size:11px">${r.jef}</td>`;
     h += `<td class="td-mono" style="text-align:right">${r.dias.toFixed(1)}</td>`;
+    h += `<td class="td-mono" style="text-align:right">${r.costoDiario ? fmtFull(r.costoDiario) : '-'}</td>`;
     h += `<td class="td-mono" style="text-align:right;color:${r.costo < 0 ? '#c0392b' : '#229954'}">${fmtFull(r.costo)}</td>`;
     h += `<td class="td-mono" style="text-align:right">${fmtFull(r.prod)}</td>`;
     h += `<td class="td-mono" style="text-align:right" data-x="${r.prodUF || 0}" data-xf="uf">${fmtUF(r.prodUF)}</td>`;
@@ -1666,7 +1669,7 @@ function refreshConsultor(name) {
   });
 
   if (rows.length === 0) {
-    h += '<tr><td colspan="10" style="text-align:center;color:var(--text3);padding:20px">Sin registros</td></tr>';
+    h += '<tr><td colspan="11" style="text-align:center;color:var(--text3);padding:20px">Sin registros</td></tr>';
   }
 
   h += '</tbody></table>';

@@ -142,6 +142,7 @@
     <div class="tab" onclick="switchTab('consultor')">Consultor</div>
     <div class="tab" onclick="switchTab('calculadora')">Calculadora</div>
     <div class="tab" onclick="switchTab('importar')">Importar Excel</div>
+    <button type="button" class="xls-btn xls-btn-all" onclick="exportAllTablesExcel()" title="Exporta en un solo libro todas las tablas ya cargadas (una hoja por tabla)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Exportar todo a Excel</button>
   </div>
   <div id="tabResumen">
     <div class="kpi-row" id="kpiRow"></div>
@@ -156,21 +157,21 @@
         <div class="horiz-chart-container"><canvas id="horizChart" style="cursor:pointer"></canvas></div>
       </div>
       <div class="card">
-        <div class="card-title"><span class="ta">●</span> Detalle Actividades — <span id="detailMonthLabel" style="color:var(--accent)"></span></div>
+        <div class="card-title"><span class="ta">●</span> Detalle Actividades — <span id="detailMonthLabel" style="color:var(--accent)"></span><button type="button" class="xls-btn calc-no-print" onclick="exportTablesExcel('tableWrap', 'resumen')" title="Exportar tabla a Excel"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Excel</button></div>
         <div class="table-wrap" id="tableWrap"></div>
       </div>
     </div>
   </div>
   <div id="tabDetalle" style="display:none">
     <div class="card">
-      <div class="card-title"><span class="ta">●</span> Margen Histórico por Actividad</div>
+      <div class="card-title"><span class="ta">●</span> Margen Histórico por Actividad<button type="button" class="xls-btn calc-no-print" onclick="exportTablesExcel('detalleTableWrap', 'detalle_margen')" title="Exportar tabla a Excel"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Excel</button></div>
       <div class="table-wrap" id="detalleTableWrap" style="max-height:700px"></div>
     </div>
   </div>
 
   <div id="tabDetalleRev" style="display:none">
     <div class="card">
-      <div class="card-title"><span class="ta">●</span> Evolución Revenue & Holidays — <span id="detRevTitle" style="color:var(--accent);font-weight:700"></span></div>
+      <div class="card-title"><span class="ta">●</span> Evolución Revenue & Holidays — <span id="detRevTitle" style="color:var(--accent);font-weight:700"></span><button type="button" class="xls-btn calc-no-print" onclick="exportTablesExcel('detRevTableWrap', 'detalle_revenue')" title="Exportar tabla a Excel"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Excel</button></div>
       <div class="kpi-row" id="detRevKpis" style="grid-template-columns:repeat(4,1fr)"></div>
       <div class="chart-container" style="height:420px"><canvas id="detRevChart"></canvas></div>
       <div class="table-wrap" id="detRevTableWrap" style="margin-top:14px;max-height:420px"></div>
@@ -190,7 +191,7 @@
       <div class="chart-container" style="height:440px"><canvas id="facChart"></canvas></div>
     </div>
     <div class="card">
-      <div class="card-title"><span class="ta">●</span> WIP Mensual por Actividad</div>
+      <div class="card-title"><span class="ta">●</span> WIP Mensual por Actividad<button type="button" class="xls-btn calc-no-print" onclick="exportTablesExcel('facTableWrap', 'facturacion_wip')" title="Exportar tabla a Excel"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Excel</button></div>
       <div class="table-wrap" id="facTableWrap" style="max-height:620px"></div>
     </div>
   </div>
@@ -227,6 +228,7 @@
           <label id="projGrowthWrap" style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:0.6px;display:flex;align-items:center;gap:6px">Crecimiento %
             <input type="number" id="projGrowth" class="calc-input" value="2" step="0.5" oninput="refreshProyeccion()" autocomplete="off" data-1p-ignore data-lpignore="true" data-form-type="other" style="width:72px;text-align:right">
           </label>
+          <button type="button" class="xls-btn calc-no-print" onclick="exportTablesExcel('projTableWrap', 'proyeccion')" title="Exportar tabla a Excel"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Excel</button>
           <label id="projAdjWrap" style="font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase;letter-spacing:0.6px;display:none;align-items:center;gap:6px">Ajuste %
             <input type="number" id="projAdj" class="calc-input" value="0" step="1" oninput="refreshProyeccion()" autocomplete="off" data-1p-ignore data-lpignore="true" data-form-type="other" style="width:72px;text-align:right">
           </label>
@@ -262,7 +264,7 @@
 
   <div id="tabConsultor" style="display:none">
     <div class="card">
-      <div class="card-title"><span class="ta">●</span> Historial por Consultor</div>
+      <div class="card-title"><span class="ta">●</span> Historial por Consultor<button type="button" class="xls-btn calc-no-print" onclick="exportTablesExcel('consultorTableWrap', 'consultor')" title="Exportar tabla a Excel"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Excel</button></div>
       <div style="margin-bottom:12px;position:relative">
         <label style="font-size:12px;color:var(--text3);font-weight:600">Buscar Consultor</label>
         <form autocomplete="off" onsubmit="return false" style="margin:0;padding:0;border:0">
@@ -283,10 +285,13 @@
     <div class="card">
       <div class="card-title" style="justify-content:space-between">
         <span><span class="ta">●</span> Calculadora de Margen</span>
+        <div style="display:flex;gap:8px;align-items:center">
+        <button type="button" class="xls-btn calc-no-print" onclick="exportTablesExcel('calcSelectedWrap', 'calculadora')" title="Exportar tabla a Excel"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Excel</button>
         <button type="button" class="calc-export-btn calc-no-print" onclick="calcExportPDF()" title="Exportar a PDF">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:6px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           Exportar PDF
         </button>
+        </div>
       </div>
 
       <div class="calc-tarifa-row">

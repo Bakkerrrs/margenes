@@ -28,6 +28,7 @@ ALTER TABLE actividades ADD COLUMN IF NOT EXISTS code_report TEXT;
 ALTER TABLE actividades ADD COLUMN IF NOT EXISTS desc_report TEXT;
 ALTER TABLE actividades ADD COLUMN IF NOT EXISTS starter_date TEXT;
 ALTER TABLE actividades ADD COLUMN IF NOT EXISTS finisher_date TEXT;
+ALTER TABLE actividades ADD COLUMN IF NOT EXISTS delivery_mode TEXT;
 
 -- ============================================================
 -- consultores: new columns from BDD2

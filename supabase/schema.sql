@@ -65,7 +65,10 @@ CREATE TABLE IF NOT EXISTS actividades (
 
   -- Dates
   starter_date TEXT,                         -- Starter Date
-  finisher_date TEXT                         -- Finisher Date
+  finisher_date TEXT,                        -- Finisher Date
+
+  -- Delivery
+  delivery_mode TEXT                         -- Delivery Mode (última columna de BDD1)
 );
 
 -- ============================================================

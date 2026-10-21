@@ -25,7 +25,7 @@ let ALL = [];   // actividades as arrays matching original format
 let CONS = {};   // consultores keyed by "actShort|month"
 let HOLI = {};   // holidays keyed by "employee|month" → total dias
 let CONS_RAW = []; // raw consultores rows for Consultor tab
-let F = { fy: [], bu: [], irm: [], cu: [], je: [] };  // filter options
+let F = { fy: [], bu: [], irm: [], dm: [], cu: [], je: [] };  // filter options
 
 let sChart, hChart, dChart, drChart, pChart, facChart;
 let sortCol = 8, sortDir = 'asc';
@@ -153,7 +153,8 @@ async function loadData() {
     //  6:prod, 7:total_costo_corregido, 8:margin (calculated), 9:billing, 10:jefatura,
     //  11:diasImputados, 12:workingDays, 13:fy, 14:pais, 15:quarter,
     //  16:project, 17:projectName, 18:subproject, 19:subprojectName,
-    //  20:irm (Income recognition Method — filtro), 21:keyBuFinal, 22:starterDate, 23:finisherDate, 24:totalProdUF]
+    //  20:irm (Income recognition Method — filtro), 21:keyBuFinal, 22:starterDate, 23:finisherDate, 24:totalProdUF,
+    //  25:deliveryMode (Delivery Mode — filtro)]
     ALL = actRows.map(r => [
       r.month, r.customer, r.act_short, r.act_desc,
       r.tipo_at, r.bu,
@@ -162,7 +163,8 @@ async function loadData() {
       r.pais || '', r.quarter || '',
       r.project || '', r.project_name || '', r.subproject || '', r.subproject_name || '',
       r.irm || '', r.key_bu_final || '', r.starter_date || '', r.finisher_date || '',
-      Number(r.total_prod_uf) || 0
+      Number(r.total_prod_uf) || 0,
+      r.delivery_mode || ''
     ]);
 
     // Store raw consultores for Consultor tab
@@ -188,6 +190,7 @@ async function loadData() {
     F.fy = [...new Set(ALL.map(a => a[13]))].sort();
     F.bu = [...new Set(ALL.map(a => a[5]))].sort();
     F.irm = [...new Set(ALL.map(a => a[20]))].filter(v => v).sort();
+    F.dm = [...new Set(ALL.map(a => a[25]))].filter(v => v).sort();
     F.cu = [...new Set(ALL.map(a => a[1]))].sort();
     F.je = [...new Set(ALL.map(a => a[10]))].sort();
     WIP_HIST = null; // derived from ALL, rebuilt on demand
@@ -233,7 +236,7 @@ function deepLinkTerm() {
 function initUI() {
   buildFYOptions();
 
-  // BU, IRM, Customer, Jefatura and Month filters are populated dynamically in onFYChange()
+  // BU, IRM, Delivery Mode, Customer, Jefatura and Month filters are populated dynamically in onFYChange()
 
   document.getElementById('legend').innerHTML = RANGES.map(r =>
     `<div class="legend-item"><div class="legend-dot" style="background:${r.color}"></div>${r.label}</div>`
@@ -241,7 +244,7 @@ function initUI() {
     '<div class="legend-item" style="margin-left:12px"><div style="width:16px;height:16px;border-radius:4px;background:rgba(2,147,28,0.12);display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#02931C;font-family:JetBrains Mono">%</div><span style="font-weight:600;color:var(--text2)">Margen Ponderado</span></div>' +
     '<div class="legend-item" style="margin-left:12px;color:var(--text3)"><span style="font-weight:600;color:var(--text2)">Subcontracting:</span>&nbsp;&lt;10% \u00b7 10-20% \u00b7 &ge;20%</div>';
 
-  ['filterBU', 'filterIRM', 'filterJefatura', 'filterMonth'].forEach(id =>
+  ['filterBU', 'filterIRM', 'filterDM', 'filterJefatura', 'filterMonth'].forEach(id =>
     document.getElementById(id).addEventListener('change', refresh)
   );
   // Close the floating panels (Año Fiscal, Customer, ayuda de Proyección) when clicking outside them
@@ -386,12 +389,14 @@ function onFYChange() {
 
   const fyBU = [...new Set(fyData.map(a => a[5]))].filter(v => v && v !== '0').sort();
   const fyIRM = [...new Set(fyData.map(a => a[20]))].filter(v => v).sort();
+  const fyDM = [...new Set(fyData.map(a => a[25]))].filter(v => v).sort();
   const fyCU = [...new Set(fyData.map(a => a[1]))].sort();
   const fyJE = [...new Set(fyData.map(a => a[10]))].sort();
   const fyMonths = [...new Set(fyData.map(a => a[0]))].sort();
 
   updateSelect('filterBU', fyBU, document.getElementById('filterBU').value, 'Todas');
   updateSelect('filterIRM', fyIRM, document.getElementById('filterIRM').value, 'Todos');
+  updateSelect('filterDM', fyDM, document.getElementById('filterDM').value, 'Todos');
   buildCUOptions(fyCU);
   updateSelect('filterJefatura', fyJE, document.getElementById('filterJefatura').value, 'Todas');
 
@@ -409,6 +414,7 @@ function gf() {
     fy: getSelectedFYs(),
     bu: document.getElementById('filterBU').value,
     irm: document.getElementById('filterIRM').value,
+    dm: document.getElementById('filterDM').value,
     cu: getCheckedCUs(),
     je: document.getElementById('filterJefatura').value,
     month: document.getElementById('filterMonth').value,
@@ -444,6 +450,7 @@ function flt(data, opts = {}) {
     if (!opts.ignoreFY && !fySet.has(a[13])) return false;
     if (f.bu && a[5] !== f.bu) return false;
     if (f.irm && a[20] !== f.irm) return false;
+    if (f.dm && a[25] !== f.dm) return false;
     if (cuSet && !cuSet.has(a[1])) return false;
     if (f.je && a[10] !== f.je) return false;
     if (f.prodPos && a[6] <= 0) return false;
@@ -1609,6 +1616,7 @@ function refreshConsultor(name) {
         adv: r.responsible_id || '',
         jef: r.jefe_directo || '',
         dias: Number(r.dias) || 0,
+        costoDiario: Number(r.costo_diario) || 0,
         costo: Number(r.costo_mensual) || 0,
         report: r.report_code || '',
         prod: ad.pr,
@@ -1626,6 +1634,7 @@ function refreshConsultor(name) {
   h += '<th class="sortable" style="cursor:default">ADV</th>';
   h += '<th class="sortable" style="cursor:default">Jefatura</th>';
   h += '<th class="sortable" style="cursor:default;text-align:right">D\u00edas</th>';
+  h += '<th class="sortable" style="cursor:default;text-align:right">Costo Diario</th>';
   h += '<th class="sortable" style="cursor:default;text-align:right">Costo</th>';
   h += '<th class="sortable" style="cursor:default;text-align:right">Producci\u00f3n</th>';
   h += '<th class="sortable" style="cursor:default;text-align:right">Prod UF</th>';
@@ -1651,6 +1660,7 @@ function refreshConsultor(name) {
     h += `<td class="td-name" style="font-size:11px">${r.adv}</td>`;
     h += `<td class="td-name" style="font-size:11px">${r.jef}</td>`;
     h += `<td class="td-mono" style="text-align:right">${r.dias.toFixed(1)}</td>`;
+    h += `<td class="td-mono" style="text-align:right">${r.costoDiario ? fmtFull(r.costoDiario) : '-'}</td>`;
     h += `<td class="td-mono" style="text-align:right;color:${r.costo < 0 ? '#c0392b' : '#229954'}">${fmtFull(r.costo)}</td>`;
     h += `<td class="td-mono" style="text-align:right">${fmtFull(r.prod)}</td>`;
     h += `<td class="td-mono" style="text-align:right" data-x="${r.prodUF || 0}" data-xf="uf">${fmtUF(r.prodUF)}</td>`;
@@ -1659,7 +1669,7 @@ function refreshConsultor(name) {
   });
 
   if (rows.length === 0) {
-    h += '<tr><td colspan="10" style="text-align:center;color:var(--text3);padding:20px">Sin registros</td></tr>';
+    h += '<tr><td colspan="11" style="text-align:center;color:var(--text3);padding:20px">Sin registros</td></tr>';
   }
 
   h += '</tbody></table>';
@@ -2054,7 +2064,8 @@ const IMP_BDD1_MAP = {
   'Subco':'subco','Standarized Project':'standarized_project',
   'BU FINAL 2':'bu','Code Report':'code_report','Desc Report':'desc_report',
   'Total_Prod_UF':'total_prod_uf','Jefatura':'jefatura',
-  'Starter Date':'starter_date','Finisher Date':'finisher_date'
+  'Starter Date':'starter_date','Finisher Date':'finisher_date',
+  'Delivery Mode':'delivery_mode'
 };
 
 const IMP_BDD2_MAP = {

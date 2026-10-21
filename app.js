@@ -623,10 +623,10 @@ function renderTable(md, month) {
       + `<td class="td-mono">${a[2].startsWith('SGC') ? `<a href="#" class="codigo-link" onclick="event.stopPropagation();fillSearch('${a[2]}');return false">${a[2]}</a>` : a[2]}</td><td class="td-name">${a[3]}</td><td class="td-name">${a[1]}</td>`
       + `<td>${a[5]}</td><td class="td-name">${a[10]}</td>`
       + `<td class="td-mono" style="text-align:right">${fmtFull(a[6])}</td>`
-      + `<td class="td-mono" style="text-align:right">${fmtUF(a[24])}</td>`
+      + `<td class="td-mono" style="text-align:right" data-x="${a[24] || 0}" data-xf="uf">${fmtUF(a[24])}</td>`
       + `<td class="td-mono" style="text-align:right;color:${a[7] < 0 ? '#c0392b' : '#229954'}">${fmtFull(a[7])}</td>`
       + `<td style="text-align:right"><span class="margin-badge ${cls}">${mgPct}${hasProd ? '%' : ''}</span></td>`
-      + `<td class="td-mono" style="text-align:right">${fmt(a[9])}</td></tr>`;
+      + `<td class="td-mono" style="text-align:right" data-x="${a[9] || 0}">${fmt(a[9])}</td></tr>`;
     if (hasC) {
       h += `<tr id="cr${idx}" class="consultant-row" style="display:none"><td></td><td colspan="10"><div style="padding:6px 0">`
         + `<table style="width:100%;font-size:12px"><tr><th style="padding:5px 10px;text-align:left">Profesional</th><th style="padding:5px 10px;text-align:left">ADV</th><th style="padding:5px 10px;text-align:left">Jefatura</th><th style="padding:5px 10px;text-align:right">D\u00edas Act.</th><th style="padding:5px 10px;text-align:right">Holidays</th></tr>`;
@@ -829,7 +829,7 @@ function refreshDetalleRev() {
         + `<td class="td-name" style="font-size:11px;color:var(--text2)" title="${r.cons.join(', ')}">${consTxt}</td>`
         + `<td class="td-mono" style="text-align:right">${fmtFull(r.rev)}</td>`
         + `<td class="td-mono" style="text-align:right;color:${r.holi > 0 ? '#8e44ad' : 'var(--text3)'}">${r.holi > 0 ? r.holi.toFixed(1) : '0'}</td>`
-        + `<td class="td-mono" style="text-align:right;color:${mgColor}">${fmtFull(r.mg)} <span style="color:var(--text3);font-size:10px">(${r.mgPct.toFixed(1)}%)</span></td>`
+        + `<td class="td-mono" style="text-align:right;color:${mgColor}" data-x="${r.mg}">${fmtFull(r.mg)} <span style="color:var(--text3);font-size:10px">(${r.mgPct.toFixed(1)}%)</span></td>`
         + '</tr>';
     });
   }
@@ -1466,16 +1466,16 @@ function refreshFacturacion() {
     h += `<td class="fixed-col col1">${row.ad}</td>`;
     h += `<td class="fixed-col col2">${row.cu}</td>`;
     h += `<td class="fixed-col col3">${row.bu}</td>`;
-    h += `<td class="td-mono" style="text-align:right;color:var(--text3);font-size:11px">${row.wipIn !== 0 ? fmt(row.wipIn) : '—'}</td>`;
+    h += `<td class="td-mono" style="text-align:right;color:var(--text3);font-size:11px" data-x="${row.wipIn}">${row.wipIn !== 0 ? fmt(row.wipIn) : '—'}</td>`;
     months.forEach(m => {
       const c = row.cells[m];
       if (!c.open) { h += '<td style="text-align:center;color:#ccc">—</td>'; return; }
       const arrow = c.moved && c.delta !== 0 ? (c.delta > 0 ? ' ▲' : ' ▼') : '';
       const tip = `${row.as} · ${mlabel(m)}\nProducción: ${fmtFull(c.pr)}\nFacturación: ${fmtFull(c.bi)}\nΔ del mes: ${fmtFull(c.delta)}\nWIP acumulado: ${fmtFull(c.wip)}${c.moved ? '' : '\n(sin movimiento — saldo arrastrado)'}`;
-      h += `<td style="text-align:center"><span class="mg-cell" style="${wipBg(c.delta, c.moved)};min-width:66px" title="${tip.replace(/"/g, '&quot;')}">${fmt(c.wip)}${arrow}</span></td>`;
+      h += `<td style="text-align:center" data-x="${c.wip}"><span class="mg-cell" style="${wipBg(c.delta, c.moved)};min-width:66px" title="${tip.replace(/"/g, '&quot;')}">${fmt(c.wip)}${arrow}</span></td>`;
     });
-    h += `<td style="text-align:center;border-left:2px solid #E66C37;background:#fffaf7"><span class="mg-cell" style="${wipBg(row.deltaPeriod, true)};min-width:66px">${fmt(row.deltaPeriod)}</span></td>`;
-    h += `<td style="text-align:center;border-left:2px solid var(--accent);background:#f8fafd"><span class="mg-cell" style="${wipBg(row.wipOut, true)};font-weight:800;min-width:66px">${fmt(row.wipOut)}</span></td>`;
+    h += `<td style="text-align:center;border-left:2px solid #E66C37;background:#fffaf7" data-x="${row.deltaPeriod}"><span class="mg-cell" style="${wipBg(row.deltaPeriod, true)};min-width:66px">${fmt(row.deltaPeriod)}</span></td>`;
+    h += `<td style="text-align:center;border-left:2px solid var(--accent);background:#f8fafd" data-x="${row.wipOut}"><span class="mg-cell" style="${wipBg(row.wipOut, true)};font-weight:800;min-width:66px">${fmt(row.wipOut)}</span></td>`;
     h += '</tr>';
   });
 
@@ -1487,13 +1487,13 @@ function refreshFacturacion() {
   h += `<td class="fixed-col col1" style="background:var(--surface2)">TOTAL (${rows.length} actividades)</td>`;
   h += `<td class="fixed-col col2" style="background:var(--surface2)"></td>`;
   h += `<td class="fixed-col col3" style="background:var(--surface2)"></td>`;
-  h += `<td class="td-mono" style="text-align:right;font-size:11px;color:var(--text3)">${fmt(totIn)}</td>`;
+  h += `<td class="td-mono" style="text-align:right;font-size:11px;color:var(--text3)" data-x="${totIn}">${fmt(totIn)}</td>`;
   months.forEach(m => {
     const arrow = tot[m].delta !== 0 ? (tot[m].delta > 0 ? ' ▲' : ' ▼') : '';
-    h += `<td style="text-align:center"><span class="mg-cell" style="${wipBg(tot[m].delta, true)};min-width:66px" title="Δ del mes: ${fmtFull(tot[m].delta)}">${fmt(tot[m].wip)}${arrow}</span></td>`;
+    h += `<td style="text-align:center" data-x="${tot[m].wip}"><span class="mg-cell" style="${wipBg(tot[m].delta, true)};min-width:66px" title="Δ del mes: ${fmtFull(tot[m].delta)}">${fmt(tot[m].wip)}${arrow}</span></td>`;
   });
-  h += `<td style="text-align:center;border-left:2px solid #E66C37"><span class="mg-cell" style="${wipBg(totDelta, true)};min-width:66px">${fmt(totDelta)}</span></td>`;
-  h += `<td style="text-align:center;border-left:2px solid var(--accent)"><span class="mg-cell" style="${wipBg(wipEnd, true)};font-weight:800;min-width:66px">${fmt(wipEnd)}</span></td>`;
+  h += `<td style="text-align:center;border-left:2px solid #E66C37" data-x="${totDelta}"><span class="mg-cell" style="${wipBg(totDelta, true)};min-width:66px">${fmt(totDelta)}</span></td>`;
+  h += `<td style="text-align:center;border-left:2px solid var(--accent)" data-x="${wipEnd}"><span class="mg-cell" style="${wipBg(wipEnd, true)};font-weight:800;min-width:66px">${fmt(wipEnd)}</span></td>`;
   h += '</tr>';
 
   h += '</tbody></table>';
@@ -1653,7 +1653,7 @@ function refreshConsultor(name) {
     h += `<td class="td-mono" style="text-align:right">${r.dias.toFixed(1)}</td>`;
     h += `<td class="td-mono" style="text-align:right;color:${r.costo < 0 ? '#c0392b' : '#229954'}">${fmtFull(r.costo)}</td>`;
     h += `<td class="td-mono" style="text-align:right">${fmtFull(r.prod)}</td>`;
-    h += `<td class="td-mono" style="text-align:right">${fmtUF(r.prodUF)}</td>`;
+    h += `<td class="td-mono" style="text-align:right" data-x="${r.prodUF || 0}" data-xf="uf">${fmtUF(r.prodUF)}</td>`;
     h += `<td style="text-align:right;color:${mgColor};font-weight:600">${mgPct}${hasProd ? '%' : ''}</td>`;
     h += '</tr>';
   });
@@ -1872,6 +1872,117 @@ function initCalculadoraTab() {
   inp.addEventListener('blur', () => { setTimeout(() => { dd.classList.remove('open'); inp.setAttribute('aria-expanded','false'); }, 150); });
 
   calcRender();
+}
+
+// ─── Exportar a Excel ───
+
+// Tablas exportables: wrap que contiene la <table> renderizada → nombre de hoja.
+const XLS_TABLES = [
+  { wrap: 'tableWrap', sheet: 'Resumen' },
+  { wrap: 'detalleTableWrap', sheet: 'Detalle Margen' },
+  { wrap: 'detRevTableWrap', sheet: 'Detalle Revenue' },
+  { wrap: 'facTableWrap', sheet: 'Facturación WIP' },
+  { wrap: 'projTableWrap', sheet: 'Proyección' },
+  { wrap: 'consultorTableWrap', sheet: 'Consultor' },
+  { wrap: 'calcSelectedWrap', sheet: 'Calculadora' }
+];
+const XLS_FMT = { clp: '"$"#,##0;-"$"#,##0', uf: '#,##0.0" UF"', pct: '0.0%', num: '#,##0.0' };
+
+// Convierte el texto mostrado (formato es-CL) en un valor de celda tipado.
+function xlsParseText(t) {
+  if (t === '' || t === '-' || t === '—') return null;
+  let m;
+  if ((m = t.match(/^(-?)\$([\d.]+)$/))) return { v: Number(m[1] + m[2].replace(/\./g, '')), z: XLS_FMT.clp };
+  if ((m = t.match(/^([+-]?\d+(?:\.\d+)?)%$/))) return { v: Number(m[1]) / 100, z: XLS_FMT.pct };
+  if (/^-?\d+\.\d+$/.test(t)) return { v: Number(t), z: XLS_FMT.num };
+  return { v: t };
+}
+
+function xlsCellValue(td) {
+  // data-x guarda el valor exacto cuando el texto viene abreviado ($1.2M, 3.4K UF)
+  const x = td.getAttribute('data-x');
+  if (x !== null && x !== '' && !isNaN(Number(x))) return { v: Number(x), z: XLS_FMT[td.getAttribute('data-xf') || 'clp'] };
+  const input = td.querySelector('input:not([type=hidden])');
+  if (input && input.style.display !== 'none') return input.value === '' ? null : { v: Number(input.value) };
+  // Quitar iconos de la UI (expandir ▶▼, flechas ▲, botones × −)
+  return xlsParseText(td.textContent.replace(/[▶▼▲×−]/g, '').replace(/\s+/g, ' ').trim());
+}
+
+// Lee la tabla principal de un wrap (ignora sub-tablas y filas expandibles) como matriz de celdas.
+function xlsTableToAoa(wrapId) {
+  const wrap = document.getElementById(wrapId);
+  const table = wrap && wrap.querySelector(':scope > table');
+  if (!table) return null;
+  const rows = [];
+  table.querySelectorAll(':scope > thead > tr, :scope > tbody > tr').forEach(tr => {
+    if (tr.classList.contains('consultant-row')) return;
+    if (tr.children.length === 1 && tr.children[0].colSpan > 1) return; // fila "Sin registros"
+    const cells = [];
+    [...tr.children].forEach(td => {
+      const c = td.tagName === 'TH' ? { v: td.textContent.replace(/\s+/g, ' ').trim() } : xlsCellValue(td);
+      cells.push(c);
+      for (let i = 1; i < (td.colSpan || 1); i++) cells.push(null);
+    });
+    rows.push(cells);
+  });
+  if (rows.length < 2) return null;
+  // Quitar columnas completamente vacías (expansores, botones de acción)
+  const width = Math.max(...rows.map(r => r.length));
+  const keep = [];
+  for (let c = 0; c < width; c++) if (rows.some(r => r[c] && r[c].v !== '' && r[c].v != null)) keep.push(c);
+  return rows.map(r => keep.map(c => r[c] || null));
+}
+
+function xlsAoaToSheet(aoa) {
+  const ws = {};
+  aoa.forEach((row, r) => row.forEach((cell, c) => {
+    if (!cell) return;
+    const ref = XLSX.utils.encode_cell({ r, c });
+    ws[ref] = typeof cell.v === 'number' ? { t: 'n', v: cell.v, z: cell.z } : { t: 's', v: String(cell.v) };
+  }));
+  const ncols = Math.max(...aoa.map(r => r.length));
+  ws['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: aoa.length - 1, c: ncols - 1 } });
+  ws['!cols'] = Array.from({ length: ncols }, (_, c) => ({
+    wch: Math.min(50, Math.max(8, ...aoa.map(r => (!r[c] ? 0 : typeof r[c].v === 'number' ? 14 : String(r[c].v).length + 2))))
+  }));
+  ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: 0, c: ncols - 1 } }) };
+  ws['!freeze'] = { xSplit: 0, ySplit: 1 };
+  return ws;
+}
+
+function xlsSheetName(name, wb) {
+  let base = name.replace(/[\[\]:*?\/\\]/g, ' ').slice(0, 31), n = base, i = 2;
+  while (wb.SheetNames.includes(n)) n = base.slice(0, 28) + ' ' + i++;
+  return n;
+}
+
+function xlsDownload(wb, prefix) {
+  const d = new Date(), pad = v => String(v).padStart(2, '0');
+  const stamp = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}`;
+  XLSX.writeFile(wb, `${prefix}_${stamp}.xlsx`, { compression: true });
+}
+
+// Exporta una o varias tablas (ids de wrap) a un único libro Excel, una hoja por tabla.
+function exportTablesExcel(wrapIds, prefix) {
+  if (typeof XLSX === 'undefined') { alert('No se pudo cargar la librería de Excel. Revisa tu conexión e intenta de nuevo.'); return; }
+  const ids = Array.isArray(wrapIds) ? wrapIds : [wrapIds];
+  const wb = XLSX.utils.book_new();
+  ids.forEach(id => {
+    const def = XLS_TABLES.find(t => t.wrap === id) || { wrap: id, sheet: id };
+    const aoa = xlsTableToAoa(id);
+    if (aoa) XLSX.utils.book_append_sheet(wb, xlsAoaToSheet(aoa), xlsSheetName(def.sheet, wb));
+  });
+  if (!wb.SheetNames.length) { alert('No hay datos en la tabla para exportar con los filtros actuales.'); return; }
+  xlsDownload(wb, prefix || 'margenes');
+}
+
+// Exporta todas las tablas en un solo libro. Las pestañas que dependen de los filtros solo se
+// renderizan al visitarlas, así que se regeneran antes para no exportar datos desactualizados.
+function exportAllTablesExcel() {
+  [refreshDetalle, refreshDetalleRev, refreshFacturacion, refreshProyeccion].forEach(fn => {
+    try { fn(); } catch (e) { console.warn('Exportar todo: no se pudo regenerar', fn.name, e); }
+  });
+  exportTablesExcel(XLS_TABLES.map(t => t.wrap), 'margenes_tablas');
 }
 
 // ─── Hover Tooltip ───

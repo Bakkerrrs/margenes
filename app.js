@@ -235,9 +235,7 @@ function deepLinkTerm() {
 }
 
 function initUI() {
-  buildFYOptions();
-
-  // BU, IRM, Delivery Mode, Customer, Jefatura and Month filters are populated dynamically in onFYChange()
+  msInit();
 
   document.getElementById('legend').innerHTML = RANGES.map(r =>
     `<div class="legend-item"><div class="legend-dot" style="background:${r.color}"></div>${r.label}</div>`
@@ -245,14 +243,11 @@ function initUI() {
     '<div class="legend-item" style="margin-left:12px"><div style="width:16px;height:16px;border-radius:4px;background:rgba(2,147,28,0.12);display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#02931C;font-family:JetBrains Mono">%</div><span style="font-weight:600;color:var(--text2)">Margen Ponderado</span></div>' +
     '<div class="legend-item" style="margin-left:12px;color:var(--text3)"><span style="font-weight:600;color:var(--text2)">Subcontracting:</span>&nbsp;&lt;10% \u00b7 10-20% \u00b7 &ge;20%</div>';
 
-  ['filterBU', 'filterIRM', 'filterDM', 'filterJefatura', 'filterMonth'].forEach(id =>
-    document.getElementById(id).addEventListener('change', refresh)
-  );
+  document.getElementById('filterMonth').addEventListener('change', refresh);
   // Close the floating panels (Año Fiscal, Customer, ayuda de Proyección) when clicking outside them
   document.addEventListener('click', e => {
-    ['filterFYWrap', 'filterCUWrap', 'projInfoWrap'].forEach(id => {
-      const wrap = document.getElementById(id);
-      if (wrap && !wrap.contains(e.target)) wrap.classList.remove('open');
+    document.querySelectorAll('.ms-dropdown.open, #projInfoWrap').forEach(wrap => {
+      if (!wrap.contains(e.target)) wrap.classList.remove('open');
     });
   });
   document.getElementById('filterProdPos').addEventListener('change', refresh);
@@ -270,7 +265,7 @@ function initUI() {
   const linked = deepLinkTerm();
   if (linked) document.getElementById('filterSearch').value = linked;
 
-  onFYChange();
+  refresh();
 }
 
 function fillSearch(code) {
@@ -288,136 +283,130 @@ function clearFilter(id) {
 
 // ─── Filters & helpers ───
 
-// ─── Año Fiscal multi-select ───
+// ─── Filtros multi-selección en cascada ───
+// Año Fiscal, BU, IRM, Delivery Mode, Customer y Jefatura son multi-selección con buscador.
+// Cada uno ofrece solo los valores que existen en los datos que cumplen los DEMÁS filtros,
+// así las opciones se acotan entre sí. Selección vacía = sin filtro (todos).
 
-function buildFYOptions() {
-  const wrap = document.getElementById('filterFYOptions');
-  const latest = F.fy[F.fy.length - 1];
-  wrap.innerHTML = F.fy.map(fy =>
-    `<label class="ms-option"><input type="checkbox" class="fyCheck" value="${fy}" onchange="onFYChange()"${fy === latest ? ' checked' : ''}> ${fy}</label>`
-  ).join('');
-}
-
-// Resolved list of selected fiscal years. If nothing is checked we fall back to
-// all years so the dashboard is never blank.
-function getSelectedFYs() {
-  const checked = [...document.querySelectorAll('.fyCheck:checked')].map(cb => cb.value);
-  return checked.length ? checked : F.fy.slice();
-}
-
-function fyLabel(sel) {
-  if (sel.length === 0 || sel.length === F.fy.length) return 'Todos';
-  return sel.length <= 2 ? sel.join(', ') : `${sel.length} años`;
-}
-
-function toggleFYDropdown(e) {
-  e.stopPropagation();
-  const wrap = document.getElementById('filterFYWrap');
-  const open = wrap.classList.toggle('open');
-  document.getElementById('filterFYToggle').setAttribute('aria-expanded', open ? 'true' : 'false');
-}
-
-function fySelectAll(state) {
-  document.querySelectorAll('.fyCheck').forEach(cb => { cb.checked = state; });
-  onFYChange();
-}
-
-// ─── Customer multi-select ───
+const MS_DIMS = [
+  { key: 'fy', col: 13, all: 'Todos', unit: 'años' },
+  { key: 'bu', col: 5, all: 'Todas', unit: 'BUs' },
+  { key: 'irm', col: 20, all: 'Todos', unit: 'métodos' },
+  { key: 'dm', col: 25, all: 'Todos', unit: 'modos' },
+  { key: 'cu', col: 1, all: 'Todas', unit: 'clientes' },
+  { key: 'je', col: 10, all: 'Todas', unit: 'jefaturas' }
+];
+const MS = {};  // key → { sel: Set de valores elegidos, opts: valores disponibles }
+MS_DIMS.forEach(d => { MS[d.key] = { sel: new Set(), opts: [] }; });
 
 function escHtml(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-// Rebuild the customer checkbox list (called on every FY change since the
-// available customers depend on the selected fiscal years). Previously
-// checked customers stay checked if they still exist in the new list.
-function buildCUOptions(values) {
-  const prev = new Set(getCheckedCUs());
-  const wrap = document.getElementById('filterCUOptions');
-  wrap.innerHTML = values.map(cu =>
-    `<label class="ms-option"><input type="checkbox" class="cuCheck" value="${escHtml(cu)}" onchange="onCUChange()"${prev.has(cu) ? ' checked' : ''}> ${escHtml(cu)}</label>`
-  ).join('');
-  updateCULabel();
+function msNorm(s) { return String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(); }
+
+function msInit() {
+  MS_DIMS.forEach(d => {
+    document.getElementById('ms-' + d.key).innerHTML =
+      `<button type="button" class="ms-toggle" onclick="msToggle(event, '${d.key}')" aria-haspopup="true" aria-expanded="false">`
+      + `<span class="ms-label">${d.all}</span>`
+      + '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#5a6a7e" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></button>'
+      + '<div class="ms-panel">'
+      + `<input type="search" class="ms-search" placeholder="Buscar…" oninput="msRenderOptions('${d.key}')" autocomplete="off" data-1p-ignore data-lpignore="true" data-form-type="other">`
+      + `<div class="ms-actions"><button type="button" onclick="msSetAll('${d.key}', true)">Todos</button><button type="button" onclick="msSetAll('${d.key}', false)">Ninguno</button></div>`
+      + '<div class="ms-options"></div></div>';
+  });
+  // Por defecto se abre en el último año fiscal
+  if (F.fy.length) MS.fy.sel.add(F.fy[F.fy.length - 1]);
 }
 
-// Checked customers. Empty selection means "no filter" (all customers),
-// mirroring the Año Fiscal fallback so the dashboard is never blank.
-function getCheckedCUs() {
-  return [...document.querySelectorAll('.cuCheck:checked')].map(cb => cb.value);
-}
-
-function cuLabel(sel) {
-  const total = document.querySelectorAll('.cuCheck').length;
-  if (sel.length === 0 || sel.length === total) return 'Todas';
-  return sel.length <= 2 ? sel.join(', ') : `${sel.length} clientes`;
-}
-
-function updateCULabel() {
-  document.getElementById('filterCULabel').textContent = cuLabel(getCheckedCUs());
-}
-
-function toggleCUDropdown(e) {
+function msToggle(e, key) {
   e.stopPropagation();
-  const wrap = document.getElementById('filterCUWrap');
-  const open = wrap.classList.toggle('open');
-  document.getElementById('filterCUToggle').setAttribute('aria-expanded', open ? 'true' : 'false');
+  const wrap = document.getElementById('ms-' + key);
+  const open = !wrap.classList.contains('open');
+  document.querySelectorAll('.ms-dropdown.open').forEach(w => w.classList.remove('open'));
+  wrap.classList.toggle('open', open);
+  wrap.querySelector('.ms-toggle').setAttribute('aria-expanded', open ? 'true' : 'false');
+  if (open) wrap.querySelector('.ms-search').focus();
 }
 
-function cuSelectAll(state) {
-  document.querySelectorAll('.cuCheck').forEach(cb => { cb.checked = state; });
-  onCUChange();
+// Opciones listadas: las disponibles más las ya elegidas (aunque hoy no tengan datos, para
+// poder desmarcarlas), filtradas por el texto del buscador.
+function msVisible(key) {
+  const q = msNorm(document.querySelector(`#ms-${key} .ms-search`).value.trim());
+  const all = [...new Set([...MS[key].opts, ...MS[key].sel])].sort();
+  return q ? all.filter(v => msNorm(v).includes(q)) : all;
 }
 
-function onCUChange() {
-  updateCULabel();
+function msRenderOptions(key) {
+  const box = document.querySelector(`#ms-${key} .ms-options`);
+  const scroll = box.scrollTop;
+  const vis = msVisible(key), avail = new Set(MS[key].opts);
+  box.innerHTML = vis.length
+    ? vis.map(v => `<label class="ms-option${avail.has(v) ? '' : ' ms-off'}" title="${avail.has(v) ? '' : 'Sin datos con los demás filtros'}"><input type="checkbox" data-v="${escHtml(v)}" onchange="msCheck('${key}', this)"${MS[key].sel.has(v) ? ' checked' : ''}> ${escHtml(v)}</label>`).join('')
+    : '<div class="ms-empty">Sin coincidencias</div>';
+  box.scrollTop = scroll;
+}
+
+function msLabel(key) {
+  const d = MS_DIMS.find(x => x.key === key), sel = [...MS[key].sel];
+  if (sel.length === 0) return d.all;
+  return sel.length <= 2 ? sel.join(', ') : `${sel.length} ${d.unit}`;
+}
+
+function msCheck(key, cb) {
+  if (cb.checked) MS[key].sel.add(cb.dataset.v); else MS[key].sel.delete(cb.dataset.v);
   refresh();
 }
 
-function onFYChange() {
-  const selFYs = getSelectedFYs();
-  const fySet = new Set(selFYs);
-  const allSelected = selFYs.length === F.fy.length;
-  document.getElementById('filterFYLabel').textContent = fyLabel(selFYs);
-  document.getElementById('fyBadge').textContent = allSelected ? 'Todos los FY' : 'FY ' + selFYs.join(' · ');
-  const fyData = ALL.filter(a => fySet.has(a[13]));
+// Sin texto en el buscador, "Todos" quita el filtro. Con texto, Todos / Ninguno marcan o
+// desmarcan solo las opciones encontradas.
+function msSetAll(key, state) {
+  const searching = document.querySelector(`#ms-${key} .ms-search`).value.trim();
+  if (!searching) MS[key].sel.clear();
+  else msVisible(key).forEach(v => { if (state) MS[key].sel.add(v); else MS[key].sel.delete(v); });
+  refresh();
+}
 
-  function updateSelect(id, values, prevVal, allLabel) {
-    const sel = document.getElementById(id);
-    sel.innerHTML = allLabel ? `<option value="">${allLabel}</option>` : '';
-    values.forEach(v => { sel.innerHTML += `<option value="${v}">${v}</option>`; });
-    sel.value = values.includes(prevVal) ? prevVal : (allLabel ? '' : values[values.length - 1] || '');
-  }
+function msClear(key) {
+  MS[key].sel.clear();
+  refresh();
+}
 
-  const fyBU = [...new Set(fyData.map(a => a[5]))].filter(v => v && v !== '0').sort();
-  const fyIRM = [...new Set(fyData.map(a => a[20]))].filter(v => v).sort();
-  const fyDM = [...new Set(fyData.map(a => a[25]))].filter(v => v).sort();
-  const fyCU = [...new Set(fyData.map(a => a[1]))].sort();
-  const fyJE = [...new Set(fyData.map(a => a[10]))].sort();
-  const fyMonths = [...new Set(fyData.map(a => a[0]))].sort();
+// Recalcula las opciones de cada filtro a partir de los demás filtros. Las selecciones no se
+// descartan aunque queden sin datos: así quitar un filtro devuelve el estado anterior.
+function syncFilters() {
+  MS_DIMS.forEach(d => {
+    MS[d.key].opts = [...new Set(flt(ALL, { except: d.key }).map(a => a[d.col]))]
+      .filter(v => v != null && v !== '' && !(d.key === 'bu' && v === '0')).sort();
+  });
+  MS_DIMS.forEach(d => {
+    msRenderOptions(d.key);
+    document.querySelector(`#ms-${d.key} .ms-label`).textContent = msLabel(d.key);
+  });
 
-  updateSelect('filterBU', fyBU, document.getElementById('filterBU').value, 'Todas');
-  updateSelect('filterIRM', fyIRM, document.getElementById('filterIRM').value, 'Todos');
-  updateSelect('filterDM', fyDM, document.getElementById('filterDM').value, 'Todos');
-  buildCUOptions(fyCU);
-  updateSelect('filterJefatura', fyJE, document.getElementById('filterJefatura').value, 'Todas');
+  const fys = gf().fy;
+  document.getElementById('fyBadge').textContent = fys.length === F.fy.length ? 'Todos los FY' : 'FY ' + fys.join(' · ');
 
-  const prevMonth = document.getElementById('filterMonth').value;
+  // Mes Detalle: selección única, acotada a los meses de los datos filtrados
+  const months = [...new Set(flt(ALL).map(a => a[0]))].sort();
   const ms = document.getElementById('filterMonth');
-  ms.innerHTML = '';
-  fyMonths.forEach(m => { ms.innerHTML += `<option value="${m}">${mlabel(m)}</option>`; });
-  ms.value = fyMonths.includes(prevMonth) ? prevMonth : fyMonths[fyMonths.length - 1] || '';
-
-  refresh();
+  const prevMonth = ms.value;
+  ms.innerHTML = months.map(m => `<option value="${m}">${mlabel(m)}</option>`).join('');
+  ms.value = months.includes(prevMonth) ? prevMonth : months[months.length - 1] || '';
 }
 
 function gf() {
+  const sel = k => [...MS[k].sel];
   return {
-    fy: getSelectedFYs(),
-    bu: document.getElementById('filterBU').value,
-    irm: document.getElementById('filterIRM').value,
-    dm: document.getElementById('filterDM').value,
-    cu: getCheckedCUs(),
-    je: document.getElementById('filterJefatura').value,
+    // Año Fiscal sin selección = todos los años disponibles
+    fy: MS.fy.sel.size ? sel('fy').sort() : (MS.fy.opts.length ? MS.fy.opts.slice() : F.fy.slice()),
+    fySel: sel('fy'),
+    bu: sel('bu'),
+    irm: sel('irm'),
+    dm: sel('dm'),
+    cu: sel('cu'),
+    je: sel('je'),
     month: document.getElementById('filterMonth').value,
     prodPos: document.getElementById('filterProdPos').checked,
     prod1M: document.getElementById('filterProd1M').checked,
@@ -442,18 +431,20 @@ function buildHolidaysYTD(fy) {
 
 function flt(data, opts = {}) {
   const f = gf();
-  const fySet = new Set(f.fy);
-  const cuSet = f.cu.length ? new Set(f.cu) : null;
+  const ex = opts.except;  // filtro a omitir (para calcular sus propias opciones)
+  const set = k => (k !== ex && f[k].length ? new Set(f[k]) : null);
+  const fySet = !opts.ignoreFY && ex !== 'fy' && f.fySel.length ? new Set(f.fySel) : null;
+  const buSet = set('bu'), irmSet = set('irm'), dmSet = set('dm'), cuSet = set('cu'), jeSet = set('je');
   const needHoliFilter = f.holi5 || f.holi15;
   const ytdHoli = needHoliFilter ? buildHolidaysYTD(f.fy) : null;
   const threshold = f.holi15 ? 15 : (f.holi5 ? 5 : 0);
   return data.filter(a => {
-    if (!opts.ignoreFY && !fySet.has(a[13])) return false;
-    if (f.bu && a[5] !== f.bu) return false;
-    if (f.irm && a[20] !== f.irm) return false;
-    if (f.dm && a[25] !== f.dm) return false;
+    if (fySet && !fySet.has(a[13])) return false;
+    if (buSet && !buSet.has(a[5])) return false;
+    if (irmSet && !irmSet.has(a[20])) return false;
+    if (dmSet && !dmSet.has(a[25])) return false;
     if (cuSet && !cuSet.has(a[1])) return false;
-    if (f.je && a[10] !== f.je) return false;
+    if (jeSet && !jeSet.has(a[10])) return false;
     if (f.prodPos && a[6] <= 0) return false;
     if (f.prod1M && a[6] < 1000000) return false;
     if (f.q && !(a[2].toLowerCase().includes(f.q) || a[3].toLowerCase().includes(f.q))) return false;
@@ -478,6 +469,7 @@ function fmtUF(n) { if (n == null || isNaN(n) || n === 0) return '-'; const a = 
 
 function refresh() {
   selRange = -1; // reset range filter on any refresh
+  syncFilters();
   const fd = flt(ALL), f = gf();
   const months = [...new Set(fd.map(a => a[0]))].sort();
 
@@ -716,7 +708,7 @@ function refreshDetalleRev() {
   const titleParts = [];
   if (f.q) titleParts.push(`"${f.q}"`);
   if (f.cu.length) titleParts.push(f.cu.length <= 2 ? f.cu.join(' · ') : `${f.cu.length} clientes`);
-  if (f.bu) titleParts.push(f.bu);
+  if (f.bu.length) titleParts.push(f.bu.length <= 2 ? f.bu.join(' · ') : `${f.bu.length} BUs`);
   const fyTitle = f.fy.length === F.fy.length ? 'Todos los FY' : 'FY ' + f.fy.join(' · ');
   if (titleParts.length === 0) titleParts.push(`Todas las actividades · ${fyTitle}`);
   else titleParts.push(fyTitle);
@@ -933,7 +925,7 @@ function refreshProyeccion() {
   const titleParts = [];
   if (f.q) titleParts.push(`"${f.q}"`);
   if (f.cu.length) titleParts.push(f.cu.length <= 2 ? f.cu.join(' · ') : `${f.cu.length} clientes`);
-  if (f.bu) titleParts.push(f.bu);
+  if (f.bu.length) titleParts.push(f.bu.length <= 2 ? f.bu.join(' · ') : `${f.bu.length} BUs`);
   const fyTitle = f.fy.length === F.fy.length ? 'Todos los FY' : 'FY ' + f.fy.join(' · ');
   if (titleParts.length === 0) titleParts.push(`Todas las actividades · ${fyTitle}`);
   else titleParts.push(fyTitle);
@@ -1312,7 +1304,7 @@ function refreshFacturacion() {
   const titleParts = [];
   if (f.q) titleParts.push(`"${f.q}"`);
   if (f.cu.length) titleParts.push(f.cu.length <= 2 ? f.cu.join(' · ') : `${f.cu.length} clientes`);
-  if (f.bu) titleParts.push(f.bu);
+  if (f.bu.length) titleParts.push(f.bu.length <= 2 ? f.bu.join(' · ') : `${f.bu.length} BUs`);
   const fyTitle = f.fy.length === F.fy.length ? 'Todos los FY' : 'FY ' + f.fy.join(' · ');
   if (titleParts.length === 0) titleParts.push(`Todas las actividades · ${fyTitle}`);
   else titleParts.push(fyTitle);

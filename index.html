@@ -71,42 +71,12 @@
       </div>
     </form>
   </div>
-  <div class="filter-group">
-    <label>Año Fiscal</label>
-    <div class="ms-dropdown" id="filterFYWrap">
-      <button type="button" class="ms-toggle" id="filterFYToggle" onclick="toggleFYDropdown(event)" aria-haspopup="true" aria-expanded="false">
-        <span id="filterFYLabel">—</span>
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#5a6a7e" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-      </button>
-      <div class="ms-panel" id="filterFYPanel">
-        <div class="ms-actions">
-          <button type="button" onclick="fySelectAll(true)">Todos</button>
-          <button type="button" onclick="fySelectAll(false)">Ninguno</button>
-        </div>
-        <div id="filterFYOptions"></div>
-      </div>
-    </div>
-  </div>
-  <div class="filter-group"><label>BU</label><div class="input-row"><select id="filterBU"><option value="">Todas</option></select><button type="button" class="filter-clear" onclick="clearFilter('filterBU')" title="Limpiar filtro">×</button></div></div>
-  <div class="filter-group"><label>Income Recognition Method</label><div class="input-row"><select id="filterIRM"><option value="">Todos</option></select><button type="button" class="filter-clear" onclick="clearFilter('filterIRM')" title="Limpiar filtro">×</button></div></div>
-  <div class="filter-group"><label>Delivery Mode</label><div class="input-row"><select id="filterDM"><option value="">Todos</option></select><button type="button" class="filter-clear" onclick="clearFilter('filterDM')" title="Limpiar filtro">×</button></div></div>
-  <div class="filter-group">
-    <label>Customer</label>
-    <div class="ms-dropdown" id="filterCUWrap">
-      <button type="button" class="ms-toggle" id="filterCUToggle" onclick="toggleCUDropdown(event)" aria-haspopup="true" aria-expanded="false">
-        <span id="filterCULabel">Todas</span>
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#5a6a7e" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-      </button>
-      <div class="ms-panel" id="filterCUPanel">
-        <div class="ms-actions">
-          <button type="button" onclick="cuSelectAll(true)">Todos</button>
-          <button type="button" onclick="cuSelectAll(false)">Ninguno</button>
-        </div>
-        <div id="filterCUOptions"></div>
-      </div>
-    </div>
-  </div>
-  <div class="filter-group"><label>Jefatura</label><div class="input-row"><select id="filterJefatura"><option value="">Todas</option></select><button type="button" class="filter-clear" onclick="clearFilter('filterJefatura')" title="Limpiar filtro">×</button></div></div>
+  <div class="filter-group"><label>Año Fiscal</label><div class="input-row"><div class="ms-dropdown" id="ms-fy"></div><button type="button" class="filter-clear" onclick="msClear('fy')" title="Limpiar filtro">×</button></div></div>
+  <div class="filter-group"><label>BU</label><div class="input-row"><div class="ms-dropdown" id="ms-bu"></div><button type="button" class="filter-clear" onclick="msClear('bu')" title="Limpiar filtro">×</button></div></div>
+  <div class="filter-group"><label>Income Recognition Method</label><div class="input-row"><div class="ms-dropdown" id="ms-irm"></div><button type="button" class="filter-clear" onclick="msClear('irm')" title="Limpiar filtro">×</button></div></div>
+  <div class="filter-group"><label>Delivery Mode</label><div class="input-row"><div class="ms-dropdown" id="ms-dm"></div><button type="button" class="filter-clear" onclick="msClear('dm')" title="Limpiar filtro">×</button></div></div>
+  <div class="filter-group"><label>Customer</label><div class="input-row"><div class="ms-dropdown" id="ms-cu"></div><button type="button" class="filter-clear" onclick="msClear('cu')" title="Limpiar filtro">×</button></div></div>
+  <div class="filter-group"><label>Jefatura</label><div class="input-row"><div class="ms-dropdown" id="ms-je"></div><button type="button" class="filter-clear" onclick="msClear('je')" title="Limpiar filtro">×</button></div></div>
   <div class="filter-group"><label>Mes Detalle</label><select id="filterMonth"></select></div>
   <div class="filter-group">
     <label>&nbsp;</label>

@@ -219,6 +219,8 @@ const BDD2_MAP = {
 };
 
 // Numeric columns (will be parsed as numbers)
+const PREFERRED_HEADERS = { irm: 'Income recognition Method' };
+
 const BDD1_NUMERIC = new Set(['wip','billing','prod','cost','margin','dias_imputados','dias_actividad','dias_gratuidad','working_days','total_costo_corregido','total_prod_uf']);
 const BDD2_NUMERIC = new Set(['hours','dias','working_days','fte','costo_diario','costo_mensual','sueldo_base_nominal','sueldo_liquido_teorico','prod_mensual_uf','prod_mensual_pesos']);
 
@@ -344,6 +346,15 @@ function parseSheet(sheet, colMap, numericSet) {
     if (exact) { hMap[idx] = exact; mapped.push(h); return; }
     const key = Object.keys(colMap).find(k => k.toLowerCase() === h.toLowerCase());
     if (key) { hMap[idx] = colMap[key]; mapped.push(h); } else { unmapped.push(h); }
+  });
+  // Si hay varios encabezados para el mismo campo, gana el preferido ("IRM vs2" mezcla IRM con Delivery Mode)
+  Object.entries(PREFERRED_HEADERS).forEach(([dbC, pref]) => {
+    if (!headerRow.some((h, idx) => hMap[idx] === dbC && h.toLowerCase() === pref.toLowerCase())) return;
+    headerRow.forEach((h, idx) => {
+      if (hMap[idx] === dbC && h.toLowerCase() !== pref.toLowerCase()) {
+        delete hMap[idx]; mapped.splice(mapped.indexOf(h), 1); unmapped.push(`${h} (ignorada: se usa "${pref}")`);
+      }
+    });
   });
 
   // Parse data rows (everything after the header row)

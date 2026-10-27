@@ -39,7 +39,8 @@ let activeTab = 'resumen';
 // those colours (0 = dark, 1 = red, 4 = green), so charts, legend and the
 // range filter keep working without structural changes.
 const SUBCO_IDX = { dark: 0, red: 1, green: 4 };
-function isSubco(irm) { return String(irm || '').trim().toLowerCase() === 'subcontracting'; }
+// Subcontracting puede venir como IRM o como Delivery Mode según la planilla.
+function isSubco(irm, dm) { return [irm, dm].some(v => String(v || '').trim().toLowerCase() === 'subcontracting'); }
 
 let selRange = -1; // selected RANGES index from hChart click (-1 = no filter)
 
@@ -464,8 +465,8 @@ function flt(data, opts = {}) {
   });
 }
 
-function gri(mg, irm) {
-  if (isSubco(irm)) return mg < 0.10 ? SUBCO_IDX.dark : mg < 0.20 ? SUBCO_IDX.red : SUBCO_IDX.green;
+function gri(mg, irm, dm) {
+  if (isSubco(irm, dm)) return mg < 0.10 ? SUBCO_IDX.dark : mg < 0.20 ? SUBCO_IDX.red : SUBCO_IDX.green;
   for (let i = RANGES.length - 1; i >= 0; i--) { if (mg >= RANGES[i].lo) return i; }
   return 0;
 }
@@ -498,7 +499,7 @@ function refresh() {
     <div class="kpi"><div class="kpi-label">ADC <span style="font-weight:400;font-size:9px;color:var(--text3)">(Costo/D\u00eda)</span></div><div class="kpi-value" style="color:#c0392b">${fmtFull(adc)}</div></div>`;
 
   const sd = {}; months.forEach(m => { sd[m] = new Array(RANGES.length).fill(0); });
-  fd.forEach(a => { const ri = gri(a[8], a[20]); if (sd[a[0]]) sd[a[0]][ri]++; });
+  fd.forEach(a => { const ri = gri(a[8], a[20], a[25]); if (sd[a[0]]) sd[a[0]][ri]++; });
   const dl = {}; months.forEach((m, mi) => { dl[m] = sd[m].map((v, ri) => mi === 0 ? v : v - sd[months[mi - 1]][ri]); });
   const mMg = {}; months.forEach(m => {
     const ma = fd.filter(a => a[0] === m); const p = ma.reduce((s, a) => s + a[6], 0), c = ma.reduce((s, a) => s + a[7], 0);
@@ -585,12 +586,12 @@ function refresh() {
     const bgColors = RANGES.map((r, i) => selRange === -1 || selRange === i ? r.color : r.color + '30');
     hChart.data.datasets[0].backgroundColor = bgColors;
     hChart.update();
-    const filtered = selRange === -1 ? md : md.filter(a => gri(a[8], a[20]) === selRange);
+    const filtered = selRange === -1 ? md : md.filter(a => gri(a[8], a[20], a[25]) === selRange);
     renderTable(filtered, f.month);
   };
 
   document.getElementById('detailMonthLabel').textContent = mlabel(f.month);
-  const filtered = selRange === -1 ? md : md.filter(a => gri(a[8], a[20]) === selRange);
+  const filtered = selRange === -1 ? md : md.filter(a => gri(a[8], a[20], a[25]) === selRange);
   renderTable(filtered, f.month);
   if (activeTab === 'detalle') refreshDetalle();
   if (activeTab === 'detalleRev') refreshDetalleRev();
@@ -606,7 +607,7 @@ const SORT_COLS = [null, { k: 2, t: 's' }, { k: 3, t: 's' }, { k: 1, t: 's' }, {
 function doSort(ci) {
   if (sortCol === ci) { sortDir = sortDir === 'asc' ? 'desc' : 'asc'; } else { sortCol = ci; sortDir = 'asc'; }
   const f = gf(), fd = flt(ALL), md = fd.filter(a => a[0] === f.month);
-  const filtered = selRange === -1 ? md : md.filter(a => gri(a[8], a[20]) === selRange);
+  const filtered = selRange === -1 ? md : md.filter(a => gri(a[8], a[20], a[25]) === selRange);
   renderTable(filtered, f.month);
 }
 
@@ -623,7 +624,7 @@ function renderTable(md, month) {
   h += '</tr></thead><tbody>';
   sorted.forEach((a, idx) => {
     const hasProd = a[6] !== 0, mgPct = hasProd ? (a[8] * 100).toFixed(1) : 'N/A';
-    const ri = gri(a[8], a[20]), cls = RANGES[ri].cls;
+    const ri = gri(a[8], a[20], a[25]), cls = RANGES[ri].cls;
     const key = `${a[2]}|${month}`, hasC = CONS[key] && CONS[key].length > 0;
     h += `<tr class="${hasC ? 'expand-row' : ''}" onclick="${hasC ? `toggleRow('cr${idx}')` : ''}">`
       + `<td style="text-align:center;color:var(--accent);font-size:10px">${hasC ? '\u25B6' : ''}</td>`
@@ -1088,7 +1089,7 @@ function refreshDistribucion() {
   let outOfRange = 0;
   const datasets = RANGES.map((r, ri) => ({
     label: r.label,
-    data: fd.filter(a => gri(a[8], a[20]) === ri).map(a => {
+    data: fd.filter(a => gri(a[8], a[20], a[25]) === ri).map(a => {
       const y = a[8] * 100;
       if (y < yMin || y > yMax) outOfRange++;
       return { x: a[6], y, _act: a[2], _desc: a[3], _cu: a[1], _mo: a[0], _co: a[7] };
@@ -1179,7 +1180,7 @@ function refreshDetalle() {
   const acts = {};
   fd.forEach(a => {
     const key = a[2];
-    if (!acts[key]) { acts[key] = { as: a[2], ad: a[3], cu: a[1], bu: a[5], je: a[10], irm: a[20], months: {} }; }
+    if (!acts[key]) { acts[key] = { as: a[2], ad: a[3], cu: a[1], bu: a[5], je: a[10], irm: a[20], dm: a[25], months: {} }; }
     acts[key].months[a[0]] = { mg: a[8], pr: a[6], co: a[7], di: a[11], wd: a[12], puf: a[24] };
   });
 
@@ -1201,8 +1202,8 @@ function refreshDetalle() {
     return detSortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
   });
 
-  function mgBg(mg, irm) {
-    if (isSubco(irm)) {
+  function mgBg(mg, irm, dm) {
+    if (isSubco(irm, dm)) {
       if (mg >= 0.20) return 'background:#e2f5e5;color:#02931C';
       if (mg >= 0.10) return 'background:#fce8ea;color:#D64550';
       return 'background:#e8e8e8;color:#1a1a1a';
@@ -1234,14 +1235,14 @@ function refreshDetalle() {
       const d = row.months[m];
       if (d && d.pr !== 0) {
         const pct = (d.mg * 100).toFixed(1); const adrV = d.di > 0 ? (d.pr / d.di) : 0; const adcV = d.di > 0 ? (d.co / d.di) : 0;
-        h += `<td style="text-align:center"><span class="mg-cell" style="${mgBg(d.mg, row.irm)}" data-as="${row.as}" data-mo="${m}" data-pr="${d.pr}" data-puf="${d.puf}" data-co="${d.co}" data-mg="${pct}" data-di="${d.di}" data-wd="${d.wd}" data-adr="${Math.round(adrV)}" data-adc="${Math.round(adcV)}" onmouseenter="showTip(event,this)" onmouseleave="hideTip()">${pct}%</span></td>`;
+        h += `<td style="text-align:center"><span class="mg-cell" style="${mgBg(d.mg, row.irm, row.dm)}" data-as="${row.as}" data-mo="${m}" data-pr="${d.pr}" data-puf="${d.puf}" data-co="${d.co}" data-mg="${pct}" data-di="${d.di}" data-wd="${d.wd}" data-adr="${Math.round(adrV)}" data-adc="${Math.round(adcV)}" onmouseenter="showTip(event,this)" onmouseleave="hideTip()">${pct}%</span></td>`;
       } else if (d && d.pr === 0) {
         h += `<td style="text-align:center"><span class="mg-cell" style="background:#f0f0f0;color:#999" data-as="${row.as}" data-mo="${m}" data-pr="0" data-puf="0" data-co="${d.co}" data-mg="N/A" data-di="${d.di}" data-wd="${d.wd}" data-adr="0" data-adc="0" onmouseenter="showTip(event,this)" onmouseleave="hideTip()">N/A</span></td>`;
       } else { h += `<td style="text-align:center;color:#ccc">\u2014</td>`; }
     });
     if (row.ytdProd !== 0) {
       const ytdPct = (row.ytdMg * 100).toFixed(1);
-      h += `<td style="text-align:center;border-left:2px solid var(--accent);background:#f8fafd"><span class="mg-cell" style="${mgBg(row.ytdMg, row.irm)};font-weight:800">${ytdPct}%</span></td>`;
+      h += `<td style="text-align:center;border-left:2px solid var(--accent);background:#f8fafd"><span class="mg-cell" style="${mgBg(row.ytdMg, row.irm, row.dm)};font-weight:800">${ytdPct}%</span></td>`;
     } else { h += `<td style="text-align:center;border-left:2px solid var(--accent);background:#f8fafd"><span class="mg-cell" style="background:#f0f0f0;color:#999">N/A</span></td>`; }
     h += '</tr>';
   });
@@ -1604,11 +1605,11 @@ function refreshConsultor(name) {
   // Filter rows for this consultant, get activity description from ALL lookup
   const actDesc = {}; ALL.forEach(a => { actDesc[a[2]] = a[3]; });
   // Build lookup for activity-month → prod, prodUF, margin from actividades
-  const actData = {}; ALL.forEach(a => { actData[`${a[2]}|${a[0]}`] = { pr: a[6], puf: a[24], mg: a[8], irm: a[20] }; });
+  const actData = {}; ALL.forEach(a => { actData[`${a[2]}|${a[0]}`] = { pr: a[6], puf: a[24], mg: a[8], irm: a[20], dm: a[25] }; });
   const rows = CONS_RAW
     .filter(r => (r.profesional || r.employee_name) === name)
     .map(r => {
-      const ad = actData[`${r.act_short}|${r.month}`] || { pr: 0, puf: 0, mg: 0, irm: '' };
+      const ad = actData[`${r.act_short}|${r.month}`] || { pr: 0, puf: 0, mg: 0, irm: '', dm: '' };
       return {
         act: r.act_short || '',
         desc: actDesc[r.act_short] || r.activity_name || '',
@@ -1622,7 +1623,8 @@ function refreshConsultor(name) {
         prod: ad.pr,
         prodUF: ad.puf,
         margin: ad.mg,
-        irm: ad.irm
+        irm: ad.irm,
+        dm: ad.dm
       };
     })
     .sort((a, b) => b.month.localeCompare(a.month) || a.act.localeCompare(b.act));
@@ -1651,7 +1653,7 @@ function refreshConsultor(name) {
     const hasProd = r.prod !== 0;
     const mgPct = hasProd ? (r.margin * 100).toFixed(1) : 'N/A';
     const mgColor = !hasProd ? '#999'
-      : isSubco(r.irm) ? (r.margin >= 0.20 ? '#02931C' : r.margin >= 0.10 ? '#D64550' : '#1a1a1a')
+      : isSubco(r.irm, r.dm) ? (r.margin >= 0.20 ? '#02931C' : r.margin >= 0.10 ? '#D64550' : '#1a1a1a')
       : r.margin >= 0.34 ? '#02931C' : r.margin >= 0.30 ? '#5a6600' : r.margin >= 0.28 ? '#b45309' : r.margin >= 0.25 ? '#D64550' : '#1a1a1a';
     h += `<tr${trCls}>`;
     h += `<td class="td-mono" style="font-size:11px">${r.act.startsWith('SGC') ? `<a href="#" class="codigo-link" onclick="fillSearch('${r.act}');return false">${r.act}</a>` : r.act}</td>`;
@@ -2068,6 +2070,11 @@ const IMP_BDD1_MAP = {
   'Delivery Mode':'delivery_mode'
 };
 
+// Si la hoja trae varios encabezados para el mismo campo, este gana y los demás se ignoran.
+// "IRM vs2" mezcla IRM con Delivery Mode, así que solo se usa en planillas antiguas sin
+// "Income recognition Method".
+const IMP_PREFERRED = { irm: 'Income recognition Method' };
+
 const IMP_BDD2_MAP = {
   'RUT':'rut','Emp ID2 (Unique)':'emp_id2','Jefe directo':'jefe_directo',
   'Month':'month','Cliente':'cliente','BU2':'bu2','Employee Type':'employee_type',
@@ -2190,6 +2197,12 @@ function impParseSheet(sheet, colMap, numSet) {
     if (!h) return;
     const k = colMap[h] || colMap[Object.keys(colMap).find(k2 => k2.toLowerCase() === h.toLowerCase())];
     if (k) { hMap[idx] = k; mapped++; } else { unmapped.push(h); }
+  });
+  Object.entries(IMP_PREFERRED).forEach(([dbC, pref]) => {
+    if (!headerRow.some((h, idx) => hMap[idx] === dbC && h.toLowerCase() === pref.toLowerCase())) return;
+    headerRow.forEach((h, idx) => {
+      if (hMap[idx] === dbC && h.toLowerCase() !== pref.toLowerCase()) { delete hMap[idx]; mapped--; unmapped.push(`${h} (ignorada: se usa "${pref}")`); }
+    });
   });
 
   const rows = [];
